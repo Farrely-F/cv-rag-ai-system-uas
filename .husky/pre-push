@@ -1,0 +1,52 @@
+#!/bin/sh
+
+echo ""
+echo "🚀 ======================="
+echo "   PRE-PUSH HOOK"
+echo "   Validating build before push..."
+echo "=========================="
+echo ""
+
+# Navigate to frontend directory
+cd cv-rag-app
+
+# Run TypeScript type checking
+echo "🔎 Running TypeScript type check..."
+npx tsc --noEmit
+
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "❌ =========================="
+  echo "   PUSH BLOCKED"
+  echo "   TypeScript compilation failed."
+  echo "   Please fix the type errors above and try again."
+  echo "==========================="
+  echo ""
+  exit 1
+fi
+
+echo "✅ TypeScript check passed!"
+echo ""
+
+# Run production build
+echo "🏗️  Building production bundle..."
+npm run build
+
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "❌ =========================="
+  echo "   PUSH BLOCKED"
+  echo "   Build failed."
+  echo "   Please fix the build errors above and try again."
+  echo "==========================="
+  echo ""
+  exit 1
+fi
+
+echo ""
+echo "✅ =========================="
+echo "   PRE-PUSH PASSED"
+echo "   Build completed successfully!"
+echo "   Pushing to remote..."
+echo "==========================="
+echo ""

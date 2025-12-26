@@ -1,0 +1,30 @@
+#!/bin/sh
+
+echo ""
+echo "🔍 ======================="
+echo "   PRE-COMMIT HOOK"
+echo "   Running code quality checks..."
+echo "=========================="
+echo ""
+
+# Run lint-staged for frontend (cv-rag-app)
+echo "📝 Running ESLint on staged files in cv-rag-app..."
+cd cv-rag-app && npx lint-staged
+
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "❌ =========================="
+  echo "   COMMIT BLOCKED"
+  echo "   ESLint found issues that need to be fixed."
+  echo "   Please fix the errors above and try again."
+  echo "==========================="
+  echo ""
+  exit 1
+fi
+
+echo ""
+echo "✅ =========================="
+echo "   PRE-COMMIT PASSED"
+echo "   All checks passed successfully!"
+echo "==========================="
+echo ""
