@@ -1,0 +1,21 @@
+{
+  "name": "cv-rag-contract",
+  "version": "1.0.0",
+  "description": "DocumentRegistry smart contract for CV-RAG system - anchors Merkle roots on-chain for document verification",
+  "main": "index.js",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "test:coverage": "hardhat coverage",
+    "deploy:local": "hardhat ignition deploy ignition/modules/DocumentRegistry.ts",
+    "deploy:sepolia": "hardhat ignition deploy ignition/modules/DocumentRegistry.ts --network baseSepolia",
+    "clean": "hardhat clean"
+  },
+  "author": "Farrely Firenza",
+  "license": "MIT",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox-viem": "^4.1.2",
+    "dotenv": "^16.6.1",
+    "hardhat": "^2.28.0"
+  }
+}
