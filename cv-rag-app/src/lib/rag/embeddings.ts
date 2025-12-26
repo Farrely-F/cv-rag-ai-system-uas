@@ -21,11 +21,21 @@ export async function generateEmbedding(text: string): Promise<number[]> {
 
 /**
  * Generate embeddings for multiple texts (batched)
+ * Google AI limits to 100 items per batch, so we chunk accordingly
  */
 export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
-  const { embeddings } = await embedMany({
-    model: embeddingModel,
-    values: texts,
-  });
-  return embeddings;
+  const BATCH_SIZE = 100;
+  const allEmbeddings: number[][] = [];
+
+  // Process in batches of 100
+  for (let i = 0; i < texts.length; i += BATCH_SIZE) {
+    const batch = texts.slice(i, i + BATCH_SIZE);
+    const { embeddings } = await embedMany({
+      model: embeddingModel,
+      values: batch,
+    });
+    allEmbeddings.push(...embeddings);
+  }
+
+  return allEmbeddings;
 }

@@ -51,10 +51,11 @@ export const documentChunks = pgTable(
   },
   (table) => [
     index("chunks_document_id_idx").on(table.documentId),
-    index("chunks_embedding_idx").using(
-      "ivfflat",
-      table.embedding.op("vector_cosine_ops")
-    ),
+    // Commenting out IVFFlat index as it was causing incomplete results on small datasets
+    // index("chunks_embedding_idx").using(
+    //   "ivfflat",
+    //   table.embedding.op("vector_cosine_ops")
+    // ),
   ]
 );
 

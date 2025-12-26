@@ -27,8 +27,8 @@ export interface RetrievedChunk {
  */
 export async function retrieveRelevantChunks(
   queryEmbedding: number[],
-  topK: number = 3,
-  similarityThreshold: number = 0.7
+  topK: number = 10,
+  similarityThreshold: number = 0.2
 ): Promise<RetrievedChunk[]> {
   const embeddingString = `[${queryEmbedding.join(",")}]`;
 

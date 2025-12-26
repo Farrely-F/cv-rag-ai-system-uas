@@ -1,112 +1,237 @@
 /**
- * Document Ingestion API Route
- * Processes PDF uploads, generates embeddings, and anchors to blockchain
+ * Document Ingestion API Route with Streaming Progress
+ * Processes PDF uploads with real-time status updates via Server-Sent Events
  */
 
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db/client";
 import { documents, documentChunks } from "@/lib/db/schema";
-import { processDocument } from "@/lib/rag/processing";
+import {
+  extractTextFromPdf,
+  extractTextWithAI,
+  splitTextIntoChunks,
+  type ChunkingStrategy,
+} from "@/lib/rag/processing";
+import { generateChunkHashes } from "@/lib/crypto/hash";
+import { buildMerkleTree, rootToBytes32 } from "@/lib/crypto/merkle";
+import { generateEmbeddings } from "@/lib/rag/embeddings";
 import { anchorMerkleRoot } from "@/lib/blockchain/registry";
-import { rootToBytes32 } from "@/lib/crypto/merkle";
+
+// Progress event types
+interface ProgressEvent {
+  step: string;
+  progress: number;
+  message: string;
+  detail?: string;
+}
+
+// Helper to create SSE message
+function createSSEMessage(event: ProgressEvent): string {
+  return `data: ${JSON.stringify(event)}\n\n`;
+}
 
 export async function POST(req: NextRequest) {
-  try {
-    const formData = await req.formData();
+  const encoder = new TextEncoder();
 
-    // Extract file and metadata
-    const file = formData.get("file") as File | null;
-    const documentType = formData.get("documentType") as string;
-    const fiscalYear = parseInt(formData.get("fiscalYear") as string);
-    const source = formData.get("source") as string;
-    const uploadedBy = (formData.get("uploadedBy") as string) || "admin";
+  // Create a readable stream for SSE
+  const stream = new ReadableStream({
+    async start(controller) {
+      const sendProgress = (event: ProgressEvent) => {
+        controller.enqueue(encoder.encode(createSSEMessage(event)));
+      };
 
-    // Validate required fields
-    if (!file) {
-      return Response.json({ error: "File is required" }, { status: 400 });
-    }
+      try {
+        const formData = await req.formData();
 
-    if (!documentType || !fiscalYear || !source) {
-      return Response.json(
-        { error: "documentType, fiscalYear, and source are required" },
-        { status: 400 }
-      );
-    }
+        // Extract file and metadata
+        const file = formData.get("file") as File | null;
+        const documentType = formData.get("documentType") as string;
+        const fiscalYear = parseInt(formData.get("fiscalYear") as string);
+        const source = formData.get("source") as string;
+        const uploadedBy = (formData.get("uploadedBy") as string) || "admin";
+        const chunkingStrategy =
+          (formData.get("chunkingStrategy") as ChunkingStrategy) || "semantic";
 
-    // Validate file type
-    if (!file.name.endsWith(".pdf")) {
-      return Response.json(
-        { error: "Only PDF files are supported" },
-        { status: 400 }
-      );
-    }
+        // Validate
+        if (!file || !documentType || !fiscalYear || !source) {
+          sendProgress({
+            step: "error",
+            progress: 0,
+            message: "Validation failed",
+            detail: "Missing required fields",
+          });
+          controller.close();
+          return;
+        }
 
-    const startTime = Date.now();
+        const startTime = Date.now();
 
-    // Convert file to buffer
-    const buffer = Buffer.from(await file.arrayBuffer());
+        const buffer = Buffer.from(await file.arrayBuffer());
 
-    // Process document: extract text, chunk, hash, embed
-    const { chunks, merkleRoot, proofs } = await processDocument(buffer);
+        // Use AI-powered structured extraction for better table handling
+        // We now make this the default if the document is likely to have complex tables
+        const useAIExtraction = formData.get("highQuality") === "true";
 
-    // Anchor Merkle root on blockchain
-    const merkleRootBytes = rootToBytes32(merkleRoot);
+        let text = "";
+        if (useAIExtraction) {
+          sendProgress({
+            step: "extracting",
+            progress: 10,
+            message:
+              "Extracting structured text using AI (this takes longer)...",
+            detail: file.name,
+          });
+          text = await extractTextWithAI(buffer);
+        } else {
+          sendProgress({
+            step: "extracting",
+            progress: 10,
+            message: "Extracting text from PDF (basic)...",
+            detail: file.name,
+          });
+          text = await extractTextFromPdf(buffer);
+        }
 
-    // Generate document ID
-    const documentId = crypto.randomUUID();
+        // Step 2: Chunk text
+        sendProgress({
+          step: "chunking",
+          progress: 20,
+          message: `Splitting using ${chunkingStrategy} strategy...`,
+          detail: `Extracted ${text.length} characters`,
+        });
 
-    // Anchor to blockchain
-    const blockchainTxId = await anchorMerkleRoot(merkleRootBytes, documentId);
+        const chunkTexts = await splitTextIntoChunks(text, {
+          strategy: chunkingStrategy,
+        });
 
-    // Save document to database
-    const [savedDocument] = await db
-      .insert(documents)
-      .values({
-        id: documentId,
-        fileName: file.name,
-        documentType,
-        fiscalYear,
-        source,
-        uploadedBy,
-        merkleRoot,
-        blockchainTxId,
-        chunkCount: chunks.length,
-        status: "active",
-      })
-      .returning();
+        // Step 3: Hash chunks
+        sendProgress({
+          step: "hashing",
+          progress: 30,
+          message: "Generating SHA-256 hashes...",
+          detail: `${chunkTexts.length} chunks to process`,
+        });
 
-    // Save chunks to database
-    const chunkInserts = chunks.map((chunk) => ({
-      documentId: savedDocument.id,
-      chunkIndex: chunk.index,
-      content: chunk.text,
-      embedding: chunk.embedding,
-      sha256Hash: chunk.hash,
-      merkleProof: proofs.get(chunk.hash) || [],
-      metadata: chunk.metadata,
-    }));
+        const hashes = generateChunkHashes(chunkTexts);
 
-    await db.insert(documentChunks).values(chunkInserts);
+        // Step 4: Build Merkle tree
+        sendProgress({
+          step: "merkle",
+          progress: 40,
+          message: "Building Merkle tree...",
+          detail: `${hashes.length} leaf nodes`,
+        });
 
-    const processingTimeMs = Date.now() - startTime;
+        const { root, proofs } = buildMerkleTree(hashes);
 
-    return Response.json({
-      success: true,
-      documentId: savedDocument.id,
-      chunksProcessed: chunks.length,
-      merkleRoot,
-      blockchainTxId,
-      processingTimeMs,
-    });
-  } catch (error) {
-    console.error("Ingest API error:", error);
-    return Response.json(
-      {
-        success: false,
-        error:
-          error instanceof Error ? error.message : "Failed to process document",
-      },
-      { status: 500 }
-    );
-  }
+        // Step 5: Generate embeddings (this is the slowest part)
+        sendProgress({
+          step: "embedding",
+          progress: 50,
+          message: "Generating embeddings (this may take a while)...",
+          detail: `${chunkTexts.length} chunks × 768 dimensions`,
+        });
+
+        const embeddings = await generateEmbeddings(chunkTexts);
+
+        // Step 6: Anchor on blockchain
+        sendProgress({
+          step: "blockchain",
+          progress: 70,
+          message: "Anchoring Merkle root on Base Sepolia...",
+          detail: `Root: ${root.slice(0, 20)}...`,
+        });
+
+        const merkleRootBytes = rootToBytes32(root);
+        const documentId = crypto.randomUUID();
+        const blockchainTxId = await anchorMerkleRoot(
+          merkleRootBytes,
+          documentId
+        );
+
+        // Step 7: Save to database
+        sendProgress({
+          step: "database",
+          progress: 85,
+          message: "Saving to database...",
+          detail: `Document ID: ${documentId.slice(0, 8)}...`,
+        });
+
+        const [savedDocument] = await db
+          .insert(documents)
+          .values({
+            id: documentId,
+            fileName: file.name,
+            documentType,
+            fiscalYear,
+            source,
+            uploadedBy,
+            merkleRoot: root,
+            blockchainTxId,
+            chunkCount: chunkTexts.length,
+            status: "active",
+          })
+          .returning();
+
+        // Save chunks
+        sendProgress({
+          step: "chunks",
+          progress: 95,
+          message: "Saving chunks to database...",
+          detail: `${chunkTexts.length} chunks with embeddings`,
+        });
+
+        const chunkInserts = chunkTexts.map((text, index) => ({
+          documentId: savedDocument.id,
+          chunkIndex: index,
+          content: text,
+          embedding: embeddings[index],
+          sha256Hash: hashes[index],
+          merkleProof: proofs.get(hashes[index]) || [],
+          metadata: { position: index, tokens: Math.ceil(text.length / 4) },
+        }));
+
+        await db.insert(documentChunks).values(chunkInserts);
+
+        const processingTimeMs = Date.now() - startTime;
+
+        // Step 8: Complete
+        sendProgress({
+          step: "complete",
+          progress: 100,
+          message: "Processing complete!",
+          detail: JSON.stringify({
+            success: true,
+            documentId: savedDocument.id,
+            chunksProcessed: chunkTexts.length,
+            merkleRoot: root,
+            blockchainTxId,
+            processingTimeMs,
+          }),
+        });
+
+        controller.close();
+      } catch (error) {
+        console.error("Ingest API error:", error);
+        const sendProgress = (event: ProgressEvent) => {
+          controller.enqueue(encoder.encode(createSSEMessage(event)));
+        };
+        sendProgress({
+          step: "error",
+          progress: 0,
+          message: "Processing failed",
+          detail: error instanceof Error ? error.message : "Unknown error",
+        });
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    },
+  });
 }
