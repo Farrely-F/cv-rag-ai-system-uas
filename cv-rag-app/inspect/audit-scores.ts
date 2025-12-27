@@ -1,8 +1,8 @@
 import "dotenv/config";
-import { db } from "./src/lib/db/client";
-import { documentChunks } from "./src/lib/db/schema";
+import { db } from "@/lib/db/client";
+import { documentChunks } from "@/lib/db/schema";
 import { sql } from "drizzle-orm";
-import { generateEmbedding } from "./src/lib/rag/embeddings";
+import { generateEmbedding } from "@/lib/rag/embeddings";
 
 async function auditScores() {
   const query = "Pembiayaan Pendidikan";

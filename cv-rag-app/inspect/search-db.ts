@@ -1,6 +1,6 @@
 import "dotenv/config";
-import { db } from "../src/lib/db/client";
-import { documentChunks } from "../src/lib/db/schema";
+import { db } from "@/lib/db/client";
+import { documentChunks } from "@/lib/db/schema";
 
 async function search() {
   const query = "Pembiayaan Pendidikan";

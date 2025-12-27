@@ -1,7 +1,7 @@
 import "dotenv/config";
-import { db } from "./src/lib/db/client";
-import { documents, documentChunks } from "./src/lib/db/schema";
+import { documents, documentChunks } from "@/lib/db/schema";
 import { count, eq } from "drizzle-orm";
+import { db } from "@/lib/db/client";
 
 async function listDocs() {
   const docs = await db.select().from(documents);

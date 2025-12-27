@@ -1,7 +1,7 @@
 import "dotenv/config";
-import { db } from "./src/lib/db/client";
+import { db } from "@/lib/db/client";
 import { sql } from "drizzle-orm";
-import { generateEmbedding } from "./src/lib/rag/embeddings";
+import { generateEmbedding } from "@/lib/rag/embeddings";
 
 async function check() {
   console.log("Dropping index (if exists)...");

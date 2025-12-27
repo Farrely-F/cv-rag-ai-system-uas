@@ -1,6 +1,6 @@
 import "dotenv/config";
-import { db } from "./src/lib/db/client";
-import { documentChunks, documents } from "./src/lib/db/schema";
+import { db } from "@/lib/db/client";
+import { documentChunks, documents } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
 async function inspectChunks() {
