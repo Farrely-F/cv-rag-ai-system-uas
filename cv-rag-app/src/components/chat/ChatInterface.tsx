@@ -2,16 +2,13 @@
 
 import { useChat } from "@ai-sdk/react";
 import { useState } from "react";
-import { Send, Shield, Bot, User, Database, ExternalLink } from "lucide-react";
+import { Send, Shield, Database, Terminal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { MemoizedMarkdown } from "./memoized-markdown";
-import { VerificationPanel } from "./VerificationPanel";
-import { VerifiableSource } from "@/lib/verification";
+import { BudgetSources } from "./BudgetSources";
 
 // Types for tool results
 interface BudgetSource {
@@ -73,243 +70,178 @@ export function ChatInterface() {
   };
 
   return (
-    <div className="flex h-screen flex-col bg-background">
+    <div className="flex h-screen flex-col bg-transparent font-mono relative overflow-hidden">
+      {/* Decorative Grid Lines */}
+      <div className="absolute inset-0 pointer-events-none opacity-10 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]"></div>
+
       {/* Header */}
-      <header className="border-b px-6 py-4">
-        <div className="mx-auto flex max-w-4xl items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Shield className="h-5 w-5" />
+      <header className="border-b border-border/50 bg-background/80 backdrop-blur-md px-6 py-4 z-10">
+        <div className="mx-auto flex max-w-5xl items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex h-10 w-10 items-center justify-center border border-primary/50 bg-primary/10 text-primary animate-pulse">
+              <Shield className="h-5 w-5" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold tracking-widest uppercase text-primary">
+                CV-RAG{" "}
+                <span className="text-xs align-top opacity-50">v1.0</span>
+              </h1>
+              <p className="text-xs text-muted-foreground tracking-wider uppercase">
+                Secure Budget Analysis Terminal
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-lg font-semibold">CV-RAG Budget Chatbot</h1>
-            <p className="text-sm text-muted-foreground">
-              Cryptographically Verifiable Answers
-            </p>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>{" "}
+              SYSTEM ONLINE
+            </span>
           </div>
         </div>
       </header>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-6">
-        <div className="mx-auto max-w-4xl space-y-6 py-6">
+      <div className="flex-1 overflow-y-auto px-6 z-0 scrollbar-thin scrollbar-thumb-primary/20 scrollbar-track-transparent">
+        <div className="mx-auto max-w-5xl space-y-8 py-8">
           {messages.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-20 text-center">
-              <Shield className="mb-4 h-16 w-16 text-muted-foreground/50" />
-              <h2 className="text-xl font-semibold">
-                Ask about Indonesian Budget (APBN)
+            <div className="flex flex-col items-center justify-center py-20 text-center border border-dashed border-border/50 p-10 bg-background/30 backdrop-blur-sm">
+              <Terminal className="mb-6 h-20 w-20 text-primary/40" />
+              <h2 className="text-2xl font-bold uppercase tracking-widest text-foreground">
+                Initiate Inquiry
               </h2>
-              <p className="mt-2 max-w-md text-muted-foreground">
-                Every answer is cryptographically verifiable and traceable to
-                official documents anchored on blockchain.
+              <p className="mt-4 max-w-md text-muted-foreground font-light">
+                Submit queries regarding Indonesian Budget (APBN). All responses
+                are cryptographically signed and verified.
               </p>
-              <div className="mt-6 flex flex-wrap justify-center gap-2">
-                <Badge variant="secondary">Education Budget 2023</Badge>
-                <Badge variant="secondary">Healthcare Allocation</Badge>
-                <Badge variant="secondary">Infrastructure Spending</Badge>
+              <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-2xl">
+                {[
+                  "Education Budget",
+                  "Healthcare Allocation",
+                  "Infrastructure Spending",
+                ].map((tag) => (
+                  <button
+                    key={tag}
+                    onClick={() => setInputValue(`What was the ${tag}?`)}
+                    className="border border-primary/20 bg-primary/5 px-4 py-3 text-xs uppercase tracking-wider hover:bg-primary/20 hover:border-primary transition-all text-primary/80 hover:text-primary"
+                  >
+                    {tag}
+                  </button>
+                ))}
               </div>
             </div>
           )}
 
           {/* Error Display */}
           {error && (
-            <Card className="border-red-500/50 bg-red-50/50 dark:bg-red-950/20">
-              <CardContent className="flex items-start gap-3 p-4">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600 dark:bg-red-900/50">
-                  <svg
-                    className="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                    />
-                  </svg>
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium text-red-800 dark:text-red-200">
-                    Rate Limit Exceeded
+            <div className="border border-destructive/50 bg-destructive/10 p-4 flex items-start gap-4">
+              <div className="text-destructive animate-pulse">⚠️</div>
+              <div className="flex-1">
+                <p className="font-bold text-destructive uppercase text-sm tracking-wider">
+                  System Error: Rate Limit Exceeded
+                </p>
+                <p className="text-xs text-destructive/80 mt-1">
+                  {error.message}
+                </p>
+                {error.retryAfter && (
+                  <p className="mt-2 text-xs font-mono text-destructive">
+                    Retry available in {error.retryAfter}s
                   </p>
-                  <p className="text-sm text-red-600 dark:text-red-300">
-                    {error.message}
-                  </p>
-                  {error.retryAfter && (
-                    <p className="mt-1 text-xs text-red-500">
-                      Wait ~{error.retryAfter}s before trying again
-                    </p>
-                  )}
-                </div>
-                <button
-                  onClick={() => setError(null)}
-                  className="text-red-400 hover:text-red-600"
-                >
-                  <svg
-                    className="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M6 18L18 6M6 6l12 12"
-                    />
-                  </svg>
-                </button>
-              </CardContent>
-            </Card>
+                )}
+              </div>
+              <button
+                onClick={() => setError(null)}
+                className="text-destructive hover:text-destructive-foreground"
+              >
+                ✕
+              </button>
+            </div>
           )}
 
           {messages.map((message) => (
             <div
               key={message.id}
               className={cn(
-                "flex gap-4",
-                message.role === "user" ? "justify-end" : "justify-start"
+                "flex gap-6",
+                message.role === "user" ? "flex-row-reverse" : "flex-row"
               )}
             >
-              {message.role === "assistant" && (
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                  <Bot className="h-4 w-4" />
-                </div>
-              )}
+              <div
+                className={cn(
+                  "flex h-8 w-8 shrink-0 items-center justify-center border font-bold text-xs",
+                  message.role === "assistant"
+                    ? "border-primary text-primary bg-primary/10"
+                    : "border-secondary-foreground/30 text-secondary-foreground bg-secondary/10"
+                )}
+              >
+                {message.role === "assistant" ? "AI" : "USR"}
+              </div>
 
               <div
                 className={cn(
-                  "max-w-[80%] space-y-3",
-                  message.role === "user" && "text-right"
+                  "max-w-[85%] space-y-3",
+                  message.role === "user" && "items-end flex flex-col"
                 )}
               >
                 {message.parts.map((part, i) => {
                   switch (part.type) {
                     case "text":
                       return (
-                        <Card
+                        <div
                           key={`${message.id}-${i}`}
                           className={cn(
-                            message.role === "user" &&
-                              "border-primary/20 bg-primary/5"
+                            "p-4 border backdrop-blur-sm",
+                            message.role === "user"
+                              ? "bg-secondary/20 border-border text-foreground"
+                              : "bg-primary/5 border-primary/20 text-foreground"
                           )}
                         >
-                          <CardContent className="p-4">
-                            <MemoizedMarkdown
-                              id={`${message.id}-${i}`}
-                              content={part.text}
-                            />
-                          </CardContent>
-                        </Card>
+                          <MemoizedMarkdown
+                            id={`${message.id}-${i}`}
+                            content={part.text}
+                          />
+                        </div>
                       );
 
                     case "tool-searchBudgetDocuments":
-                      // Access output from tool part - check if output exists
                       const toolPart = part as {
                         output?: SearchResult;
                         state?: string;
                       };
-                      // Show result if output exists
                       const result = toolPart.output;
 
-                      // Show loading only if no output yet
                       if (!result) {
                         return (
-                          <Card
+                          <div
                             key={`${message.id}-${i}`}
-                            className="border-dashed"
+                            className="border border-dashed border-primary/30 p-3 flex items-center gap-3 bg-background/50"
                           >
-                            <CardContent className="flex items-center gap-2 p-3">
-                              <Spinner className="h-4 w-4" />
-                              <span className="text-sm text-muted-foreground">
-                                Searching budget documents...
-                              </span>
-                            </CardContent>
-                          </Card>
+                            <Spinner className="h-4 w-4 text-primary" />
+                            <span className="text-xs uppercase tracking-wider text-muted-foreground">
+                              Accessing Secure Archives...
+                            </span>
+                          </div>
                         );
                       }
 
                       if (!result.found) {
                         return (
-                          <Card
+                          <div
                             key={`${message.id}-${i}`}
-                            className="border-dashed border-amber-500/30"
+                            className="border border-dashed border-amber-500/30 p-3 flex items-center gap-3 bg-amber-500/5"
                           >
-                            <CardContent className="flex items-center gap-2 p-3">
-                              <Database className="h-4 w-4 text-amber-500" />
-                              <span className="text-sm text-muted-foreground">
-                                {result.message || "No documents found"}
-                              </span>
-                            </CardContent>
-                          </Card>
+                            <Database className="h-4 w-4 text-amber-500" />
+                            <span className="text-xs uppercase tracking-wider text-amber-500/80">
+                              {result.message || "Data Retrieval Failed"}
+                            </span>
+                          </div>
                         );
                       }
 
                       return (
-                        <Card
+                        <BudgetSources
                           key={`${message.id}-${i}`}
-                          className="border-dashed border-green-500/30"
-                        >
-                          <CardContent className="space-y-3 p-3">
-                            <div className="flex items-center gap-2">
-                              <Database className="h-4 w-4 text-green-500" />
-                              <span className="text-sm font-medium">
-                                Found {result.sources.length} source(s)
-                              </span>
-                            </div>
-                            <div className="space-y-2 max-h-40 overflow-y-scroll">
-                              {result.sources.map((source, idx) => (
-                                <div
-                                  key={source.chunkId}
-                                  className="rounded-lg border-l-2 border-primary/30 bg-muted/30 p-2"
-                                >
-                                  <div className="flex items-start justify-between">
-                                    <div>
-                                      <p className="text-xs font-medium">
-                                        [{idx + 1}] {source.document.fileName}
-                                      </p>
-                                      <p className="text-xs text-muted-foreground">
-                                        Year: {source.document.fiscalYear} •
-                                        Similarity:{" "}
-                                        {(source.similarity * 100).toFixed(1)}%
-                                      </p>
-                                    </div>
-                                    {source.blockchainTxId && (
-                                      <a
-                                        href={`https://sepolia.basescan.org/tx/${source.blockchainTxId}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="flex items-center gap-1 text-xs text-primary hover:underline"
-                                      >
-                                        <ExternalLink className="h-3 w-3" />
-                                      </a>
-                                    )}
-                                  </div>
-                                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                                    {source.content.slice(0, 150)}...
-                                  </p>
-                                </div>
-                              ))}
-                            </div>
-
-                            {/* Verification Panel */}
-                            <div className="mt-4 pt-2 border-t border-dashed">
-                              <VerificationPanel
-                                sources={
-                                  result.sources.map((s) => ({
-                                    ...s,
-                                    documentMetadata: {
-                                      fileName: s.document.fileName,
-                                      fiscalYear: s.document.fiscalYear,
-                                      source: s.document.source,
-                                    },
-                                  })) as VerifiableSource[]
-                                }
-                              />
-                            </div>
-                          </CardContent>
-                        </Card>
+                          result={result}
+                        />
                       );
 
                     default:
@@ -317,55 +249,56 @@ export function ChatInterface() {
                   }
                 })}
               </div>
-
-              {message.role === "user" && (
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-secondary">
-                  <User className="h-4 w-4" />
-                </div>
-              )}
             </div>
           ))}
 
           {isLoading && messages[messages.length - 1]?.role === "user" && (
-            <div className="flex gap-4">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <Bot className="h-4 w-4" />
+            <div className="flex gap-6">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center border border-primary text-primary bg-primary/10 font-bold text-xs animate-pulse">
+                AI
               </div>
-              <Card>
-                <CardContent className="flex items-center gap-2 p-4">
-                  <Spinner className="h-4 w-4" />
-                  <span className="text-sm text-muted-foreground">
-                    Thinking...
-                  </span>
-                </CardContent>
-              </Card>
+              <div className="border border-dashed border-primary/30 p-4 bg-background/50 flex items-center gap-3">
+                <div className="h-2 w-2 bg-primary animate-ping rounded-full"></div>
+                <span className="text-xs text-primary uppercase tracking-widest">
+                  Processing Query...
+                </span>
+              </div>
             </div>
           )}
         </div>
       </div>
 
       {/* Input */}
-      <div className="border-t px-6 py-4">
+      <div className="border-t border-border/50 bg-background/90 backdrop-blur-md px-6 py-6 z-10">
         <form
           onSubmit={handleSubmit}
-          className="mx-auto flex max-w-4xl items-center gap-3"
+          className="mx-auto flex max-w-5xl items-center gap-4"
         >
-          <Input
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            placeholder="Ask about the Indonesian budget (e.g., 'What was the education budget in 2023?')"
-            disabled={isLoading}
-            className="flex-1"
-          />
-          <Button type="submit" disabled={isLoading || !inputValue.trim()}>
+          <div className="relative flex-1 group">
+            <div className="absolute -inset-0.5 bg-primary/10 blur opacity-0 group-focus-within:opacity-100 transition duration-500"></div>
+            <Input
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              placeholder="ENTER COMMAND OR QUERY..."
+              disabled={isLoading}
+              className="relative bg-background border-primary/30 focus-visible:ring-0 focus-visible:border-primary text-primary placeholder:text-primary/30"
+            />
+          </div>
+          <Button
+            type="submit"
+            disabled={isLoading || !inputValue.trim()}
+            variant="default"
+            size="icon"
+            className="rounded-none border-primary bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground transition-all duration-300"
+          >
             <Send className="h-4 w-4" />
-            <span className="sr-only">Send</span>
+            <span className="sr-only">Transmit</span>
           </Button>
         </form>
-        <p className="mx-auto mt-2 max-w-4xl text-center text-xs text-muted-foreground">
-          The AI decides when to search documents. Simple questions are answered
-          directly.
-        </p>
+        <div className="mx-auto mt-2 max-w-5xl flex justify-between text-[10px] text-muted-foreground uppercase tracking-widest opacity-60">
+          <span>Secure Connection: Encrypted</span>
+          {/* <span>Latency: 12ms</span> */}
+        </div>
       </div>
     </div>
   );

@@ -56,7 +56,9 @@ export default function LoginPage() {
             <Shield className="h-8 w-8 text-primary" />
           </div>
           <div>
-            <CardTitle className="text-2xl font-bold">Admin Login</CardTitle>
+            <CardTitle className="text-2xl font-bold uppercase">
+              <h1>Admin Login</h1>
+            </CardTitle>
             <CardDescription className="mt-2">
               CV-RAG Document Management System
             </CardDescription>
