@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef } from "react";
 import {
   Upload,
   FileText,
@@ -12,6 +12,8 @@ import {
   CheckCircle2,
   Trash2,
   RefreshCw,
+  Edit,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +35,13 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { TamperModal } from "./TamperModal";
+import {
+  useDocuments,
+  useDeleteDocument,
+  useInvalidateDocuments,
+  type Document,
+} from "@/hooks/use-documents";
 
 interface ProgressEvent {
   step: string;
@@ -49,22 +58,6 @@ interface IngestionResult {
   blockchainTxId?: string;
   processingTimeMs?: number;
   error?: string;
-}
-
-interface Document {
-  id: string;
-  fileName: string;
-  documentType: string;
-  fiscalYear: number;
-  source: string;
-  uploadedBy: string;
-  uploadedAt: string;
-  merkleRoot: string;
-  blockchainTxId: string;
-  chunkCount: number;
-  status: string;
-  version?: number;
-  previousId?: string | null;
 }
 
 const STEPS = [
@@ -97,30 +90,23 @@ export function AdminInterface() {
   const [result, setResult] = useState<IngestionResult | null>(null);
   const [parentDocumentId, setParentDocumentId] = useState<string | null>(null);
 
-  // Document list state
-  const [documents, setDocuments] = useState<Document[]>([]);
-  const [isLoadingDocs, setIsLoadingDocs] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  // Document list (React Query)
+  const {
+    data: documents = [],
+    isLoading: isLoadingDocs,
+    isRefetching,
+  } = useDocuments();
+  const deleteDocumentMutation = useDeleteDocument();
+  const invalidateDocuments = useInvalidateDocuments();
+
+  const MAX_DOCS = documents.length === 1;
+
+  // Tampering state
+  const [tamperModalOpen, setTamperModalOpen] = useState(false);
+  const [selectedDocForTamper, setSelectedDocForTamper] =
+    useState<Document | null>(null);
 
   const abortControllerRef = useRef<AbortController | null>(null);
-
-  // Fetch documents on load and after upload
-  const fetchDocuments = useCallback(async () => {
-    setIsLoadingDocs(true);
-    try {
-      const res = await fetch("/api/documents");
-      const data = await res.json();
-      setDocuments(data.documents || []);
-    } catch (error) {
-      console.error("Failed to load documents:", error);
-    } finally {
-      setIsLoadingDocs(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchDocuments();
-  }, [fetchDocuments]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -148,23 +134,9 @@ export function AdminInterface() {
 
   const handleDelete = async (docId: string, fileName: string) => {
     if (!confirm(`Delete "${fileName}" and all its chunks?`)) return;
-
-    setDeletingId(docId);
-    try {
-      const res = await fetch(`/api/documents?id=${docId}`, {
-        method: "DELETE",
-      });
-      const data = await res.json();
-      if (data.success) {
-        fetchDocuments();
-      } else {
-        alert(data.error || "Failed to delete");
-      }
-    } catch {
-      alert("Failed to delete document");
-    } finally {
-      setDeletingId(null);
-    }
+    deleteDocumentMutation.mutate(docId, {
+      onError: () => alert("Failed to delete document"),
+    });
   };
 
   const handleReprocess = (doc: Document) => {
@@ -243,7 +215,7 @@ export function AdminInterface() {
                 setResult(finalResult);
                 setFile(null);
                 setParentDocumentId(null); // Clear after success
-                fetchDocuments(); // Refresh document list
+                invalidateDocuments(); // Refresh document list
               }
 
               if (event.step === "error") {
@@ -297,11 +269,13 @@ export function AdminInterface() {
             <Button
               variant="outline"
               size="sm"
-              onClick={fetchDocuments}
-              disabled={isLoadingDocs}
+              onClick={invalidateDocuments}
+              disabled={isLoadingDocs || isRefetching}
             >
               <RefreshCw
-                className={`h-4 w-4 ${isLoadingDocs ? "animate-spin" : ""}`}
+                className={`h-4 w-4 ${
+                  isLoadingDocs || isRefetching ? "animate-spin" : ""
+                }`}
               />
             </Button>
           </CardHeader>
@@ -357,19 +331,31 @@ export function AdminInterface() {
                       <Button
                         variant="outline"
                         size="sm"
+                        onClick={() => {
+                          setSelectedDocForTamper(doc);
+                          setTamperModalOpen(true);
+                        }}
+                        title="Simulate Tampering (for demonstration)"
+                        className="text-amber-600 hover:bg-amber-50 hover:text-amber-700"
+                      >
+                        <AlertTriangle className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => handleReprocess(doc)}
                         title="Re-process Document (Create new version)"
                       >
-                        <RefreshCw className="h-4 w-4" />
+                        <Edit className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => handleDelete(doc.id, doc.fileName)}
-                        disabled={deletingId === doc.id}
+                        disabled={deleteDocumentMutation.isPending}
                         className="text-red-600 hover:bg-red-50 hover:text-red-700"
                       >
-                        {deletingId === doc.id ? (
+                        {deleteDocumentMutation.isPending ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
                           <Trash2 className="h-4 w-4" />
@@ -384,250 +370,260 @@ export function AdminInterface() {
         </Card>
 
         {/* Upload Form */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Upload New Document</CardTitle>
-            <CardDescription>anchored on the blockchain.</CardDescription>
-          </CardHeader>
-          <CardContent id="upload-form">
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Version indicator for update */}
-              {parentDocumentId && (
-                <Alert className="bg-blue-50 border-blue-200 text-blue-800">
-                  <RefreshCw className="h-4 w-4" />
-                  <AlertTitle>Updating Document</AlertTitle>
-                  <AlertDescription>
-                    You are creating a new version of an existing document. This
-                    will maintain the audit trail of previous versions.
-                    <Button
-                      variant="link"
-                      className="h-auto p-0 ml-2"
-                      onClick={() => setParentDocumentId(null)}
-                    >
-                      Cancel update and upload as new
-                    </Button>
-                  </AlertDescription>
-                </Alert>
-              )}
-              {/* File Upload */}
-              <div className="space-y-2">
-                <Label htmlFor="file">PDF Document</Label>
-                <div className="flex items-center gap-4">
-                  <Input
-                    id="file"
-                    type="file"
-                    accept=".pdf"
-                    onChange={handleFileChange}
-                    disabled={isUploading}
-                  />
-                </div>
-                {file && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <FileText className="h-4 w-4" />
-                    <span>{file.name}</span>
-                    <Badge variant="secondary">
-                      {(file.size / 1024 / 1024).toFixed(2)} MB
-                    </Badge>
-                  </div>
+        {!MAX_DOCS && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Upload New Document</CardTitle>
+              <CardDescription>anchored on the blockchain.</CardDescription>
+            </CardHeader>
+            <CardContent id="upload-form">
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Version indicator for update */}
+                {parentDocumentId && (
+                  <Alert className="bg-blue-50 border-blue-200 text-blue-800">
+                    <RefreshCw className="h-4 w-4" />
+                    <AlertTitle>Updating Document</AlertTitle>
+                    <AlertDescription>
+                      You are creating a new version of an existing document.
+                      This will maintain the audit trail of previous versions.
+                      <Button
+                        variant="link"
+                        className="h-auto p-0 ml-2"
+                        onClick={() => setParentDocumentId(null)}
+                      >
+                        Cancel update and upload as new
+                      </Button>
+                    </AlertDescription>
+                  </Alert>
                 )}
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-3">
-                {/* Document Type */}
+                {/* File Upload */}
                 <div className="space-y-2">
-                  <Label htmlFor="documentType">Document Type</Label>
+                  <Label htmlFor="file">PDF Document</Label>
+                  <div className="flex items-center gap-4">
+                    <Input
+                      id="file"
+                      type="file"
+                      accept=".pdf"
+                      onChange={handleFileChange}
+                      disabled={isUploading}
+                    />
+                  </div>
+                  {file && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <FileText className="h-4 w-4" />
+                      <span>{file.name}</span>
+                      <Badge variant="secondary">
+                        {(file.size / 1024 / 1024).toFixed(2)} MB
+                      </Badge>
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-3">
+                  {/* Document Type */}
+                  <div className="space-y-2">
+                    <Label htmlFor="documentType">Document Type</Label>
+                    <Select
+                      value={documentType}
+                      onValueChange={(value) => value && setDocumentType(value)}
+                      disabled={isUploading}
+                    >
+                      <SelectTrigger id="documentType">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="APBN">
+                          APBN (State Budget)
+                        </SelectItem>
+                        <SelectItem value="APBD">
+                          APBD (Regional Budget)
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Fiscal Year */}
+                  <div className="space-y-2">
+                    <Label htmlFor="fiscalYear">Fiscal Year</Label>
+                    <Select
+                      value={fiscalYear}
+                      onValueChange={(value) => value && setFiscalYear(value)}
+                      disabled={isUploading}
+                    >
+                      <SelectTrigger id="fiscalYear">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {years.map((year) => (
+                          <SelectItem key={year} value={year.toString()}>
+                            {year}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Source */}
+                  <div className="space-y-2">
+                    <Label htmlFor="source">Source</Label>
+                    <Input
+                      id="source"
+                      value={source}
+                      onChange={(e) => setSource(e.target.value)}
+                      placeholder="e.g., Ministry of Finance"
+                      disabled={isUploading}
+                    />
+                  </div>
+                </div>
+
+                {/* Chunking Strategy */}
+                <div className="space-y-2">
+                  <Label htmlFor="chunkingStrategy">Chunking Strategy</Label>
                   <Select
-                    value={documentType}
-                    onValueChange={(value) => value && setDocumentType(value)}
+                    value={chunkingStrategy}
+                    onValueChange={(value) =>
+                      value && setChunkingStrategy(value)
+                    }
                     disabled={isUploading}
                   >
-                    <SelectTrigger id="documentType">
+                    <SelectTrigger id="chunkingStrategy">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="APBN">APBN (State Budget)</SelectItem>
-                      <SelectItem value="APBD">
-                        APBD (Regional Budget)
+                      <SelectItem value="semantic">
+                        Semantic (Recommended) - Smart splitting at natural
+                        boundaries
+                      </SelectItem>
+                      <SelectItem value="fixed">
+                        Fixed Length - Split by character count
+                      </SelectItem>
+                      <SelectItem value="sentence">
+                        Sentence-based - Groups of 3-4 sentences
+                      </SelectItem>
+                      <SelectItem value="paragraph">
+                        Paragraph-based - One paragraph per chunk
+                      </SelectItem>
+                      <SelectItem value="page">
+                        Page-based - Roughly one page per chunk
+                      </SelectItem>
+                      <SelectItem value="agentic">
+                        Agentic (AI-powered) - LLM identifies topic boundaries
                       </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                {/* Fiscal Year */}
-                <div className="space-y-2">
-                  <Label htmlFor="fiscalYear">Fiscal Year</Label>
-                  <Select
-                    value={fiscalYear}
-                    onValueChange={(value) => value && setFiscalYear(value)}
+                {/* High Quality Toggle */}
+                <div className="flex items-center space-x-2 rounded-lg border p-4 bg-primary/5">
+                  <input
+                    type="checkbox"
+                    id="highQuality"
+                    checked={highQuality}
+                    onChange={(e) => setHighQuality(e.target.checked)}
                     disabled={isUploading}
-                  >
-                    <SelectTrigger id="fiscalYear">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {years.map((year) => (
-                        <SelectItem key={year} value={year.toString()}>
-                          {year}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Source */}
-                <div className="space-y-2">
-                  <Label htmlFor="source">Source</Label>
-                  <Input
-                    id="source"
-                    value={source}
-                    onChange={(e) => setSource(e.target.value)}
-                    placeholder="e.g., Ministry of Finance"
-                    disabled={isUploading}
+                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
                   />
+                  <div className="grid gap-1.5 leading-none">
+                    <label
+                      htmlFor="highQuality"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                      High-Quality AI Extraction
+                    </label>
+                    <p className="text-xs text-muted-foreground">
+                      Uses Gemini 2.0 to perfectly extract tables and structured
+                      text. Recommended for complex budget documents. (May take
+                      30-60s)
+                    </p>
+                  </div>
                 </div>
-              </div>
 
-              {/* Chunking Strategy */}
-              <div className="space-y-2">
-                <Label htmlFor="chunkingStrategy">Chunking Strategy</Label>
-                <Select
-                  value={chunkingStrategy}
-                  onValueChange={(value) => value && setChunkingStrategy(value)}
-                  disabled={isUploading}
-                >
-                  <SelectTrigger id="chunkingStrategy">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="semantic">
-                      Semantic (Recommended) - Smart splitting at natural
-                      boundaries
-                    </SelectItem>
-                    <SelectItem value="fixed">
-                      Fixed Length - Split by character count
-                    </SelectItem>
-                    <SelectItem value="sentence">
-                      Sentence-based - Groups of 3-4 sentences
-                    </SelectItem>
-                    <SelectItem value="paragraph">
-                      Paragraph-based - One paragraph per chunk
-                    </SelectItem>
-                    <SelectItem value="page">
-                      Page-based - Roughly one page per chunk
-                    </SelectItem>
-                    <SelectItem value="agentic">
-                      Agentic (AI-powered) - LLM identifies topic boundaries
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* High Quality Toggle */}
-              <div className="flex items-center space-x-2 rounded-lg border p-4 bg-primary/5">
-                <input
-                  type="checkbox"
-                  id="highQuality"
-                  checked={highQuality}
-                  onChange={(e) => setHighQuality(e.target.checked)}
-                  disabled={isUploading}
-                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                />
-                <div className="grid gap-1.5 leading-none">
-                  <label
-                    htmlFor="highQuality"
-                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                  >
-                    High-Quality AI Extraction
-                  </label>
-                  <p className="text-xs text-muted-foreground">
-                    Uses Gemini 2.0 to perfectly extract tables and structured
-                    text. Recommended for complex budget documents. (May take
-                    30-60s)
-                  </p>
-                </div>
-              </div>
-
-              {/* Progress Steps */}
-              {isUploading && currentProgress && (
-                <div className="space-y-4 rounded-lg border bg-muted/30 p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium">{currentProgress.message}</p>
-                      {currentProgress.detail && (
-                        <p className="text-sm text-muted-foreground">
-                          {currentProgress.detail}
-                        </p>
-                      )}
+                {/* Progress Steps */}
+                {isUploading && currentProgress && (
+                  <div className="space-y-4 rounded-lg border bg-muted/30 p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">{currentProgress.message}</p>
+                        {currentProgress.detail && (
+                          <p className="text-sm text-muted-foreground">
+                            {currentProgress.detail}
+                          </p>
+                        )}
+                      </div>
+                      <span className="text-lg font-bold">
+                        {currentProgress.progress}%
+                      </span>
                     </div>
-                    <span className="text-lg font-bold">
-                      {currentProgress.progress}%
-                    </span>
+                    <Progress value={currentProgress.progress} />
+
+                    {/* Step indicators */}
+                    <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
+                      {STEPS.slice(0, -1).map((step) => {
+                        const isCompleted = completedSteps.includes(step.id);
+                        const isCurrent = currentProgress.step === step.id;
+                        return (
+                          <div
+                            key={step.id}
+                            className={`flex items-center gap-1 rounded px-2 py-1 text-xs ${
+                              isCompleted
+                                ? "bg-green-500/10 text-green-600"
+                                : isCurrent
+                                ? "bg-primary/10 text-primary"
+                                : "bg-muted text-muted-foreground"
+                            }`}
+                          >
+                            {isCompleted ? (
+                              <CheckCircle2 className="h-3 w-3" />
+                            ) : isCurrent ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <div className="h-3 w-3 rounded-full border" />
+                            )}
+                            <span className="hidden truncate sm:inline">
+                              {step.label}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <Progress value={currentProgress.progress} />
-
-                  {/* Step indicators */}
-                  <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
-                    {STEPS.slice(0, -1).map((step) => {
-                      const isCompleted = completedSteps.includes(step.id);
-                      const isCurrent = currentProgress.step === step.id;
-                      return (
-                        <div
-                          key={step.id}
-                          className={`flex items-center gap-1 rounded px-2 py-1 text-xs ${
-                            isCompleted
-                              ? "bg-green-500/10 text-green-600"
-                              : isCurrent
-                              ? "bg-primary/10 text-primary"
-                              : "bg-muted text-muted-foreground"
-                          }`}
-                        >
-                          {isCompleted ? (
-                            <CheckCircle2 className="h-3 w-3" />
-                          ) : isCurrent ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <div className="h-3 w-3 rounded-full border" />
-                          )}
-                          <span className="hidden truncate sm:inline">
-                            {step.label}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Action Buttons */}
-              <div className="flex gap-3">
-                <Button
-                  type="submit"
-                  disabled={!file || isUploading}
-                  className="flex-1"
-                >
-                  {isUploading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="h-4 w-4" />
-                      Upload and Process
-                    </>
-                  )}
-                </Button>
-
-                {isUploading && (
-                  <Button type="button" variant="outline" onClick={handleAbort}>
-                    <XCircle className="h-4 w-4" />
-                    Cancel
-                  </Button>
                 )}
-              </div>
-            </form>
-          </CardContent>
-        </Card>
+
+                {/* Action Buttons */}
+                <div className="flex gap-3">
+                  <Button
+                    type="submit"
+                    disabled={!file || isUploading}
+                    className="flex-1"
+                  >
+                    {isUploading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-4 w-4" />
+                        Upload and Process
+                      </>
+                    )}
+                  </Button>
+
+                  {isUploading && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleAbort}
+                    >
+                      <XCircle className="h-4 w-4" />
+                      Cancel
+                    </Button>
+                  )}
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Result */}
         {result && (
@@ -685,6 +681,19 @@ export function AdminInterface() {
           </Alert>
         )}
       </div>
+
+      {/* Tamper Modal */}
+      {selectedDocForTamper && (
+        <TamperModal
+          isOpen={tamperModalOpen}
+          onClose={() => {
+            setTamperModalOpen(false);
+            setSelectedDocForTamper(null);
+          }}
+          documentId={selectedDocForTamper.id}
+          documentName={selectedDocForTamper.fileName}
+        />
+      )}
     </div>
   );
 }
