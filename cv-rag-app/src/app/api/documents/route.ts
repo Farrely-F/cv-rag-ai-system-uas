@@ -24,6 +24,8 @@ export async function GET() {
         blockchainTxId: documents.blockchainTxId,
         chunkCount: documents.chunkCount,
         status: documents.status,
+        version: documents.version,
+        previousId: documents.previousId,
       })
       .from(documents)
       .orderBy(desc(documents.uploadedAt));

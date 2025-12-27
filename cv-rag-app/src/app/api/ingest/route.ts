@@ -6,6 +6,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db/client";
 import { documents, documentChunks } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import {
   extractTextFromPdf,
   extractTextWithAI,
@@ -51,6 +52,24 @@ export async function POST(req: NextRequest) {
         const uploadedBy = (formData.get("uploadedBy") as string) || "admin";
         const chunkingStrategy =
           (formData.get("chunkingStrategy") as ChunkingStrategy) || "semantic";
+        const parentDocumentId = formData.get("parentDocumentId") as
+          | string
+          | null;
+
+        let version = 1;
+        if (parentDocumentId) {
+          const [parentDoc] = await db
+            .select()
+            .from(documents)
+            .where(eq(documents.id, parentDocumentId))
+            .limit(1);
+
+          if (parentDoc) {
+            version = (parentDoc.version || 1) + 1;
+            // Optionally override metadata if not provided, but usually they stay same
+            // for the same document lineage.
+          }
+        }
 
         // Validate
         if (!file || !documentType || !fiscalYear || !source) {
@@ -169,6 +188,8 @@ export async function POST(req: NextRequest) {
             merkleRoot: root,
             blockchainTxId,
             chunkCount: chunkTexts.length,
+            version,
+            previousId: parentDocumentId,
             status: "active",
           })
           .returning();

@@ -63,6 +63,8 @@ interface Document {
   blockchainTxId: string;
   chunkCount: number;
   status: string;
+  version?: number;
+  previousId?: string | null;
 }
 
 const STEPS = [
@@ -93,6 +95,7 @@ export function AdminInterface() {
   );
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
   const [result, setResult] = useState<IngestionResult | null>(null);
+  const [parentDocumentId, setParentDocumentId] = useState<string | null>(null);
 
   // Document list state
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -126,6 +129,7 @@ export function AdminInterface() {
       setResult(null);
       setCurrentProgress(null);
       setCompletedSteps([]);
+      setParentDocumentId(null); // Clear parent if a new file is manualy picked
     }
   };
 
@@ -163,6 +167,21 @@ export function AdminInterface() {
     }
   };
 
+  const handleReprocess = (doc: Document) => {
+    // Populate form with doc metadata
+    setDocumentType(doc.documentType);
+    setFiscalYear(doc.fiscalYear.toString());
+    setSource(doc.source);
+    setParentDocumentId(doc.id);
+    setResult(null);
+
+    // Scroll to upload form
+    const formElement = document.getElementById("upload-form");
+    if (formElement) {
+      formElement.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!file) return;
@@ -182,6 +201,9 @@ export function AdminInterface() {
       formData.append("source", source);
       formData.append("chunkingStrategy", chunkingStrategy);
       formData.append("highQuality", highQuality.toString());
+      if (parentDocumentId) {
+        formData.append("parentDocumentId", parentDocumentId);
+      }
 
       const response = await fetch("/api/ingest", {
         method: "POST",
@@ -220,6 +242,7 @@ export function AdminInterface() {
                 const finalResult = JSON.parse(event.detail);
                 setResult(finalResult);
                 setFile(null);
+                setParentDocumentId(null); // Clear after success
                 fetchDocuments(); // Refresh document list
               }
 
@@ -301,6 +324,11 @@ export function AdminInterface() {
                         <span className="font-medium">{doc.fileName}</span>
                         <Badge variant="secondary">{doc.documentType}</Badge>
                         <Badge variant="outline">{doc.fiscalYear}</Badge>
+                        {doc.version && doc.version > 1 && (
+                          <Badge className="bg-blue-500 hover:bg-blue-600">
+                            v{doc.version}
+                          </Badge>
+                        )}
                       </div>
                       <div className="flex items-center gap-4 text-xs text-muted-foreground">
                         <span>{doc.chunkCount} chunks</span>
@@ -325,19 +353,29 @@ export function AdminInterface() {
                         )}
                       </div>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDelete(doc.id, doc.fileName)}
-                      disabled={deletingId === doc.id}
-                      className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                    >
-                      {deletingId === doc.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-4 w-4" />
-                      )}
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleReprocess(doc)}
+                        title="Re-process Document (Create new version)"
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDelete(doc.id, doc.fileName)}
+                        disabled={deletingId === doc.id}
+                        className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                      >
+                        {deletingId === doc.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -349,13 +387,28 @@ export function AdminInterface() {
         <Card>
           <CardHeader>
             <CardTitle>Upload New Document</CardTitle>
-            <CardDescription>
-              Upload a PDF document to process. It will be chunked, embedded,
-              and anchored on the blockchain.
-            </CardDescription>
+            <CardDescription>anchored on the blockchain.</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent id="upload-form">
             <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Version indicator for update */}
+              {parentDocumentId && (
+                <Alert className="bg-blue-50 border-blue-200 text-blue-800">
+                  <RefreshCw className="h-4 w-4" />
+                  <AlertTitle>Updating Document</AlertTitle>
+                  <AlertDescription>
+                    You are creating a new version of an existing document. This
+                    will maintain the audit trail of previous versions.
+                    <Button
+                      variant="link"
+                      className="h-auto p-0 ml-2"
+                      onClick={() => setParentDocumentId(null)}
+                    >
+                      Cancel update and upload as new
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              )}
               {/* File Upload */}
               <div className="space-y-2">
                 <Label htmlFor="file">PDF Document</Label>

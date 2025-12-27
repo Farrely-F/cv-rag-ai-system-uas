@@ -29,6 +29,9 @@ export const documents = pgTable(
     blockchainTxId: text("blockchain_tx_id").notNull(),
     status: text("status").default("active"), // 'active' | 'archived'
     chunkCount: integer("chunk_count").default(0),
+    version: integer("version").default(1),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    previousId: uuid("previous_id").references((): any => documents.id),
   },
   (table) => [index("documents_fiscal_year_idx").on(table.fiscalYear)]
 );

@@ -45,7 +45,7 @@ export async function POST(req: Request) {
 
     // Generate streaming response with RAG tool
     const result = streamText({
-      model: google("gemini-3-flash-preview"),
+      model: google("gemini-2.5-flash"),
       system: SYSTEM_PROMPT,
       messages: modelMessages,
       // Allow multi-step so LLM can use tool results
@@ -101,7 +101,7 @@ export async function POST(req: Request) {
                 context: buildContextFromChunks(chunks),
                 sources: chunks.map((c) => ({
                   chunkId: c.chunkId,
-                  content: c.content.slice(0, 500), // Truncate for token efficiency
+                  content: c.content, // Full content required for hash verification
                   similarity: c.similarity,
                   document: {
                     fileName: c.documentMetadata.fileName,
