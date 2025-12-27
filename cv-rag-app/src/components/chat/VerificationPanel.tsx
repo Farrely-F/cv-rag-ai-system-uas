@@ -85,67 +85,71 @@ export function VerificationPanel({ sources }: VerificationPanelProps) {
         <CollapsibleContent>
           <CardContent className="space-y-4 pt-0">
             {/* Sources List */}
-            {sources.map((source, index) => (
-              <div
-                key={source.chunkId}
-                className="rounded-lg border-l-2 border-primary/30 bg-muted/30 p-3"
-              >
-                <div className="mb-2 flex items-start justify-between">
-                  <div>
-                    <h4 className="text-sm font-medium">Source {index + 1}</h4>
-                    <p className="text-xs text-muted-foreground">
-                      {source.documentMetadata.fileName} (
-                      {source.documentMetadata.fiscalYear})
-                    </p>
-                  </div>
-                  {verificationResults[index] && (
-                    <div className="flex items-center gap-1">
-                      {verificationResults[index].verified ? (
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                      ) : (
-                        <XCircle className="h-4 w-4 text-destructive" />
-                      )}
+            <div className="space-y-4 max-h-60 overflow-y-auto scrollbar-thin pr-2">
+              {sources.map((source, index) => (
+                <div
+                  key={source.chunkId}
+                  className="rounded-lg border-l-2 border-primary/30 bg-muted/30 p-3"
+                >
+                  <div className="mb-2 flex items-start justify-between">
+                    <div>
+                      <h4 className="text-sm font-medium">
+                        Source {index + 1}
+                      </h4>
+                      <p className="text-xs text-muted-foreground">
+                        {source.documentMetadata.fileName} (
+                        {source.documentMetadata.fiscalYear})
+                      </p>
                     </div>
-                  )}
-                </div>
+                    {verificationResults[index] && (
+                      <div className="flex items-center gap-1">
+                        {verificationResults[index].verified ? (
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-destructive" />
+                        )}
+                      </div>
+                    )}
+                  </div>
 
-                {/* Cryptographic Details */}
-                <div className="space-y-1 font-mono text-xs text-muted-foreground">
-                  <div className="flex gap-2">
-                    <span className="text-muted-foreground/70">Hash:</span>
-                    <span className="truncate">
-                      {source.chunkHash.slice(0, 24)}...
-                    </span>
+                  {/* Cryptographic Details */}
+                  <div className="space-y-1 font-mono text-xs text-muted-foreground">
+                    <div className="flex gap-2">
+                      <span className="text-muted-foreground/70">Hash:</span>
+                      <span className="truncate">
+                        {source.chunkHash.slice(0, 24)}...
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <span className="text-muted-foreground/70">Root:</span>
+                      <span className="truncate">
+                        {source.merkleRoot.slice(0, 24)}...
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground/70">TX:</span>
+                      <a
+                        href={`https://sepolia.basescan.org/tx/${source.blockchainTxId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-primary hover:underline"
+                      >
+                        {source.blockchainTxId.slice(0, 16)}...
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <span className="text-muted-foreground/70">Root:</span>
-                    <span className="truncate">
-                      {source.merkleRoot.slice(0, 24)}...
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground/70">TX:</span>
-                    <a
-                      href={`https://sepolia.basescan.org/tx/${source.blockchainTxId}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-primary hover:underline"
-                    >
-                      {source.blockchainTxId.slice(0, 16)}...
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
-                  </div>
-                </div>
 
-                {/* Verification Error */}
-                {verificationResults[index] &&
-                  !verificationResults[index].verified && (
-                    <p className="mt-2 text-xs text-destructive">
-                      {verificationResults[index].error}
-                    </p>
-                  )}
-              </div>
-            ))}
+                  {/* Verification Error */}
+                  {verificationResults[index] &&
+                    !verificationResults[index].verified && (
+                      <p className="mt-2 text-xs text-destructive">
+                        {verificationResults[index].error}
+                      </p>
+                    )}
+                </div>
+              ))}
+            </div>
 
             {/* Verify Button */}
             <Button

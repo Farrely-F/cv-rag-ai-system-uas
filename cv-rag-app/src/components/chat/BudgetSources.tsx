@@ -48,22 +48,24 @@ export function BudgetSources({ result }: BudgetSourcesProps) {
       onOpenChange={setIsOpen}
       className="border border-primary/20 bg-primary/5 w-full"
     >
-      <div className="bg-primary/10 px-3 py-2 border-b border-primary/20 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Database className="h-3 w-3 text-primary" />
-          <span className="text-xs font-bold text-primary uppercase">
-            Data Sources Retrieved: {result.sources.length}
-          </span>
+      <CollapsibleTrigger className="w-full">
+        <div className="bg-primary/10 px-3 py-2 border-b border-primary/20 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Database className="h-3 w-3 text-primary" />
+            <span className="text-xs font-bold text-primary uppercase">
+              Data Sources Retrieved: {result.sources.length}
+            </span>
+          </div>
+          <div className="hover:bg-primary/10 p-1 rounded transition-colors">
+            {isOpen ? (
+              <ChevronUp className="h-4 w-4 text-primary" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-primary" />
+            )}
+            <span className="sr-only">Toggle Sources</span>
+          </div>
         </div>
-        <CollapsibleTrigger className="hover:bg-primary/10 p-1 rounded transition-colors">
-          {isOpen ? (
-            <ChevronUp className="h-4 w-4 text-primary" />
-          ) : (
-            <ChevronDown className="h-4 w-4 text-primary" />
-          )}
-          <span className="sr-only">Toggle Sources</span>
-        </CollapsibleTrigger>
-      </div>
+      </CollapsibleTrigger>
 
       <CollapsibleContent>
         <div className="p-3 space-y-2 max-h-60 overflow-y-auto scrollbar-thin">

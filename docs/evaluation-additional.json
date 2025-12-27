@@ -1,0 +1,51 @@
+{
+  "timestamp": "2025-12-27T19:06:24.940Z",
+  "blockchainMetrics": {
+    "gasEstimates": {
+      "anchorRootEstimate": "~65,000 gas (new root) / ~23,000 gas (duplicate check)",
+      "verifyRootEstimate": "~3,500 gas (view function, no actual cost)"
+    },
+    "transactionVerification": {
+      "rootsVerified": 1,
+      "avgBlockchainLatencyMs": 585,
+      "rootDetails": [
+        {
+          "merkleRoot": "f77950b2f488f64cabe5...",
+          "documentId": "3623cb7a-94ea-45b1-b51c-86cac6c6e74e",
+          "timestamp": 1766851980,
+          "anchoredAt": "2025-12-27T16:13:00.000Z"
+        }
+      ]
+    }
+  },
+  "endToEndMetrics": {
+    "totalQueries": 3,
+    "avgResponseTimeMs": 319,
+    "queriesWithSources": 3,
+    "avgChunksPerQuery": 5
+  },
+  "comparisonData": {
+    "baselineRag": {
+      "description": "Standard RAG without cryptographic verification",
+      "embeddingLatencyMs": 200,
+      "retrievalLatencyMs": 50,
+      "totalQueryLatencyMs": 250,
+      "verificationType": "None",
+      "tamperDetection": false,
+      "proofOverhead": 0,
+      "blockchainIntegration": false
+    },
+    "cvRag": {
+      "description": "Cryptographically Verifiable RAG with blockchain anchoring",
+      "embeddingLatencyMs": 216,
+      "retrievalLatencyMs": 51,
+      "verificationLatencyMs": 261,
+      "totalQueryLatencyMs": 267,
+      "totalWithVerificationMs": 528,
+      "verificationType": "Three-layer (Hash → Merkle → Blockchain)",
+      "tamperDetection": true,
+      "proofOverheadBytes": 333,
+      "blockchainIntegration": true
+    }
+  }
+}

@@ -1,14 +1,36 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { useState } from "react";
-import { Send, Shield, Database, Terminal } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Send, Shield, Database, Terminal, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { MemoizedMarkdown } from "./memoized-markdown";
 import { BudgetSources } from "./BudgetSources";
+import { DefaultChatTransport } from "ai";
+
+// Available LLM models
+const AVAILABLE_MODELS = [
+  {
+    id: "gemini-3-flash-preview",
+    name: "Gemini 3 Flash (Exp)",
+    speed: "⚡ Fast",
+  },
+  {
+    id: "gemini-2.0-flash",
+    name: "Gemini 2.0 Flash",
+    speed: "⚡ Fast",
+  },
+  {
+    id: "gemini-2.5-flash",
+    name: "Gemini 2.5 Flash",
+    speed: "⚡ Fast",
+  },
+  { id: "gemini-1.5-flash", name: "Gemini 1.5 Flash", speed: "⚡ Fast" },
+  { id: "gemini-1.5-pro", name: "Gemini 1.5 Pro", speed: "🧠 Most Capable" },
+] as const;
 
 // Types for tool results
 interface BudgetSource {
@@ -35,12 +57,37 @@ interface SearchResult {
 
 export function ChatInterface() {
   const [inputValue, setInputValue] = useState("");
+  const [selectedModel, setSelectedModel] = useState<string>(
+    AVAILABLE_MODELS[0].id
+  );
+  const [showModelSelector, setShowModelSelector] = useState(false);
   const [error, setError] = useState<{
     message: string;
     retryAfter?: number;
   } | null>(null);
 
+  // Use ref to avoid closure issues in transport
+  const modelRef = useRef(selectedModel);
+
+  // Update ref when model changes
+  useEffect(() => {
+    modelRef.current = selectedModel;
+    console.log("Model updated to:", selectedModel);
+  }, [selectedModel]);
+
   const { messages, sendMessage, status } = useChat({
+    transport: new DefaultChatTransport({
+      prepareSendMessagesRequest: ({ id, messages }) => {
+        console.log("Sending request with model:", modelRef.current);
+        return {
+          body: {
+            id,
+            messages,
+            model: modelRef.current, // Use ref to get latest value
+          },
+        };
+      },
+    }),
     onError: (err) => {
       // Try to parse error response
       try {
@@ -60,6 +107,15 @@ export function ChatInterface() {
   });
 
   const isLoading = status === "streaming" || status === "submitted";
+
+  // // Wrap sendMessage to include model
+  // const sendMessage = (message: { text: string }) => {
+  //   originalSendMessage({
+  //     ...message,
+  //     experimental_attachments: [],
+  //     data: { model: selectedModel },
+  //   } as );
+  // };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,7 +147,52 @@ export function ChatInterface() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+            {/* Model Selector */}
+            <div className="relative">
+              <button
+                onClick={() => setShowModelSelector(!showModelSelector)}
+                className="flex items-center gap-2 border border-primary/30 bg-primary/5 px-3 py-1.5 hover:bg-primary/10 transition-all uppercase tracking-wider text-[10px]"
+              >
+                <Settings className="h-3 w-3" />
+                <span className="text-primary">
+                  {AVAILABLE_MODELS.find((m) => m.id === selectedModel)?.name ||
+                    "Model"}
+                </span>
+              </button>
+
+              {showModelSelector && (
+                <div className="absolute right-0 top-full mt-2 w-64 border border-primary/30 bg-background/95 backdrop-blur-md shadow-lg z-50">
+                  <div className="p-2 border-b border-primary/20 text-[10px] uppercase tracking-widest text-primary">
+                    Select LLM Model
+                  </div>
+                  {AVAILABLE_MODELS.map((model) => (
+                    <button
+                      key={model.id}
+                      onClick={() => {
+                        setSelectedModel(model.id);
+                        setShowModelSelector(false);
+                      }}
+                      className={cn(
+                        "w-full text-left px-3 py-2 text-xs transition-all",
+                        selectedModel === model.id
+                          ? "bg-primary/20 text-primary"
+                          : "hover:bg-primary/10 text-foreground"
+                      )}
+                    >
+                      <div className="font-semibold">{model.name}</div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5">
+                        {model.speed}
+                      </div>
+                    </button>
+                  ))}
+                  <div className="p-2 border-t border-primary/20 text-[9px] text-muted-foreground italic">
+                    Switch models if you encounter rate limits
+                  </div>
+                </div>
+              )}
+            </div>
+
             <span className="flex items-center gap-1">
               <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>{" "}
               SYSTEM ONLINE
@@ -133,7 +234,7 @@ export function ChatInterface() {
 
           {/* Error Display */}
           {error && (
-            <div className="border border-destructive/50 bg-destructive/10 p-4 flex items-start gap-4">
+            <div className="border border-destructive/50 bg-destructive/10 p-4 flex items-start gap-4 backdrop-blur-sm">
               <div className="text-destructive animate-pulse">⚠️</div>
               <div className="flex-1">
                 <p className="font-bold text-destructive uppercase text-sm tracking-wider">

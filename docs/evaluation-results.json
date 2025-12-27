@@ -1,0 +1,146 @@
+{
+  "timestamp": "2025-12-27T19:03:33.848Z",
+  "experimentalSetup": {
+    "hardware": "Cloud-hosted (Supabase: PostgreSQL 15 + pgvector 0.5.x)",
+    "software": "Next.js 15.5.9, Node.js 22.x, TypeScript 5.x, Drizzle ORM, Viem 2.x",
+    "database": {
+      "documentCount": 1,
+      "totalChunks": 16,
+      "avgChunksPerDoc": 16,
+      "embeddingDimensions": 768
+    },
+    "blockchain": {
+      "network": "Base Sepolia Testnet (L2)",
+      "contractAddress": "0xb3a39e26ab38126510afdffe0adc09022afa73a0",
+      "anchoredRoots": 4
+    }
+  },
+  "performanceMetrics": {
+    "retrieval": {
+      "avgLatencyMs": 51,
+      "minLatencyMs": 43,
+      "maxLatencyMs": 87,
+      "avgTopKRetrieved": 5
+    },
+    "embedding": {
+      "avgLatencyMs": 216
+    },
+    "verification": {
+      "hashVerificationMs": 0.13,
+      "merkleProofMs": 0.57,
+      "blockchainVerificationMs": 260,
+      "totalVerificationMs": 261
+    },
+    "proofSize": {
+      "avgMerkleProofBytes": 269,
+      "avgProofNodesCount": 4,
+      "sha256HashBytes": 64
+    }
+  },
+  "securityAnalysis": {
+    "tamperDetection": {
+      "hashMismatchDetected": true,
+      "merkleProofFailureDetected": true,
+      "testCases": [
+        {
+          "scenario": "Content modification (appended text)",
+          "detected": true,
+          "error": "Hash mismatch detected"
+        },
+        {
+          "scenario": "Wrong hash with original Merkle proof",
+          "detected": true,
+          "error": "Merkle proof verification failed"
+        },
+        {
+          "scenario": "Tampered Merkle proof nodes",
+          "detected": true,
+          "error": "Invalid Merkle proof detected"
+        },
+        {
+          "scenario": "Verification against wrong Merkle root",
+          "detected": true,
+          "error": "Root mismatch detected"
+        },
+        {
+          "scenario": "Legitimate unmodified chunk",
+          "detected": true,
+          "error": "Correctly verified"
+        }
+      ]
+    },
+    "verificationSuccessRate": 100
+  },
+  "benchmarkQueries": [
+    {
+      "query": "Anggaran Pendidikan 2025",
+      "retrievalTimeMs": 87,
+      "chunksRetrieved": 5,
+      "topSimilarity": 0.738,
+      "avgSimilarity": 0.588
+    },
+    {
+      "query": "Belanja Kesehatan APBN",
+      "retrievalTimeMs": 45,
+      "chunksRetrieved": 5,
+      "topSimilarity": 0.579,
+      "avgSimilarity": 0.549
+    },
+    {
+      "query": "Pendapatan Negara",
+      "retrievalTimeMs": 58,
+      "chunksRetrieved": 5,
+      "topSimilarity": 0.568,
+      "avgSimilarity": 0.543
+    },
+    {
+      "query": "Subsidi Energi",
+      "retrievalTimeMs": 44,
+      "chunksRetrieved": 5,
+      "topSimilarity": 0.454,
+      "avgSimilarity": 0.432
+    },
+    {
+      "query": "Infrastruktur dan Transportasi",
+      "retrievalTimeMs": 43,
+      "chunksRetrieved": 5,
+      "topSimilarity": 0.569,
+      "avgSimilarity": 0.517
+    },
+    {
+      "query": "Belanja Pegawai",
+      "retrievalTimeMs": 45,
+      "chunksRetrieved": 5,
+      "topSimilarity": 0.562,
+      "avgSimilarity": 0.504
+    },
+    {
+      "query": "Transfer Dana Daerah",
+      "retrievalTimeMs": 46,
+      "chunksRetrieved": 5,
+      "topSimilarity": 0.46,
+      "avgSimilarity": 0.422
+    },
+    {
+      "query": "Pembiayaan Defisit",
+      "retrievalTimeMs": 44,
+      "chunksRetrieved": 5,
+      "topSimilarity": 0.508,
+      "avgSimilarity": 0.474
+    },
+    {
+      "query": "Pajak Penghasilan",
+      "retrievalTimeMs": 43,
+      "chunksRetrieved": 5,
+      "topSimilarity": 0.58,
+      "avgSimilarity": 0.535
+    },
+    {
+      "query": "Belanja Modal",
+      "retrievalTimeMs": 51,
+      "chunksRetrieved": 5,
+      "topSimilarity": 0.479,
+      "avgSimilarity": 0.442
+    }
+  ]
+}

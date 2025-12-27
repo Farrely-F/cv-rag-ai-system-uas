@@ -36,16 +36,34 @@ Rules when answering budget questions:
 - Never make up budget figures
 - If the search returns no results, say you couldn't find the information`;
 
+// Allowed models for validation
+const ALLOWED_MODELS = [
+  "gemini-3-flash-preview",
+  "gemini-2.5-flash",
+  "gemini-2.0-flash",
+  "gemini-1.5-flash",
+  "gemini-1.5-pro",
+] as const;
+
 export async function POST(req: Request) {
   try {
-    const { messages }: { messages: UIMessage[] } = await req.json();
+    const { messages, model }: { messages: UIMessage[]; model?: string } =
+      await req.json();
+
+    console.log(model);
+
+    // Validate and use selected model (default to gemini-2.0-flash-exp)
+    const selectedModel =
+      model && (ALLOWED_MODELS as readonly string[]).includes(model)
+        ? model
+        : "gemini-2.0-flash";
 
     // Convert UI messages to model messages
     const modelMessages = await convertToModelMessages(messages);
 
     // Generate streaming response with RAG tool
     const result = streamText({
-      model: google("gemini-2.5-flash"),
+      model: google(selectedModel),
       system: SYSTEM_PROMPT,
       messages: modelMessages,
       // Allow multi-step so LLM can use tool results
