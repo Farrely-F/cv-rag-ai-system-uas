@@ -45,6 +45,50 @@ const ALLOWED_MODELS = [
   "gemini-1.5-pro",
 ] as const;
 
+/**
+ * Trim conversation history to reduce token usage
+ * Keeps only recent messages and strips heavy tool results
+ */
+function trimConversationHistory(messages: UIMessage[]): UIMessage[] {
+  // Keep only last 10 messages (5 exchanges)
+  const recentMessages = messages.slice(-10);
+
+  // Strip heavy data from tool results to save tokens
+  return recentMessages.map((msg) => {
+    if (msg.role === "assistant" && msg.parts) {
+      return {
+        ...msg,
+        parts: msg.parts.map((part) => {
+          // If it's a tool result, strip the heavy verification data
+          if (
+            part.type === "tool-searchBudgetDocuments" &&
+            "output" in part &&
+            part.output
+          ) {
+            const output = part.output as SearchToolOutput;
+            const trimmedOutput: TrimmedSearchToolOutput = {
+              found: output.found,
+              message: output.message,
+              context: output.context,
+              sources: output.sources.map((s) => ({
+                chunkId: s.chunkId,
+                similarity: s.similarity,
+                document: s.document,
+              })),
+            };
+            return {
+              ...part,
+              output: trimmedOutput,
+            };
+          }
+          return part;
+        }),
+      } as UIMessage;
+    }
+    return msg;
+  });
+}
+
 export async function POST(req: Request) {
   try {
     const { messages, model }: { messages: UIMessage[]; model?: string } =
@@ -58,8 +102,15 @@ export async function POST(req: Request) {
         ? model
         : "gemini-2.0-flash";
 
+    // Trim conversation history to reduce token usage
+    const trimmedMessages = trimConversationHistory(messages);
+
+    console.log(
+      `📊 Token optimization: ${messages.length} messages → ${trimmedMessages.length} messages`
+    );
+
     // Convert UI messages to model messages
-    const modelMessages = await convertToModelMessages(messages);
+    const modelMessages = await convertToModelMessages(trimmedMessages);
 
     // Generate streaming response with RAG tool
     const result = streamText({
@@ -71,7 +122,7 @@ export async function POST(req: Request) {
       tools: {
         searchBudgetDocuments: tool({
           description:
-            "Search the official Indonesian budget documents database. Use this tool when users ask about budget allocations, spending, fiscal data, APBN, or APBD.",
+            "Search the official Indonesian budget documents database. Use this tool when users ask about budget allocations, spending, fiscal data, APBN, or APBD. For specific budget queries (e.g., education, healthcare), request 15-20 results to ensure finding detailed data.",
           inputSchema: z.object({
             query: z
               .string()
@@ -82,7 +133,7 @@ export async function POST(req: Request) {
               .number()
               .optional()
               .describe(
-                "Number of results to return (default: 5, use higher for broad queries)"
+                "Number of results to return (default: 10, use 15-20 for specific budget queries to find detailed allocations)"
               ),
           }),
           execute: async ({
@@ -92,7 +143,7 @@ export async function POST(req: Request) {
             query: string;
             topK?: number;
           }) => {
-            const k = topK ?? 15;
+            const k = topK ?? 10; // Balance between quality and token usage
             try {
               // Generate embedding for the query
               const queryEmbedding = await generateEmbedding(query);
