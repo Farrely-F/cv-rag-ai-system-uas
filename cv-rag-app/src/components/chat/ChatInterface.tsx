@@ -126,36 +126,36 @@ export function ChatInterface() {
   };
 
   return (
-    <div className="flex h-screen flex-col bg-transparent font-mono relative overflow-hidden">
+    <div className="flex h-dvh flex-col bg-transparent font-mono relative overflow-hidden">
       {/* Decorative Grid Lines */}
       <div className="absolute inset-0 pointer-events-none opacity-10 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]"></div>
 
       {/* Header */}
-      <header className="border-b border-border/50 bg-background/80 backdrop-blur-md px-6 py-4 z-10">
-        <div className="mx-auto flex max-w-5xl items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="flex h-10 w-10 items-center justify-center border border-primary/50 bg-primary/10 text-primary animate-pulse">
-              <Shield className="h-5 w-5" />
+      <header className="border-b border-border/50 bg-background/80 backdrop-blur-md px-4 sm:px-6 py-3 sm:py-4 z-10">
+        <div className="mx-auto flex max-w-5xl flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center border border-primary/50 bg-primary/10 text-primary animate-pulse">
+              <Shield className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-widest uppercase text-primary">
+              <h1 className="text-lg sm:text-xl font-bold tracking-widest uppercase text-primary">
                 CV-RAG{" "}
                 <span className="text-xs align-top opacity-50">v1.0</span>
               </h1>
-              <p className="text-xs text-muted-foreground tracking-wider uppercase">
+              <p className="text-[10px] sm:text-xs text-muted-foreground tracking-wider uppercase">
                 Secure Budget Analysis Terminal
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2 sm:gap-4 text-xs text-muted-foreground w-full sm:w-auto">
             {/* Model Selector */}
-            <div className="relative">
+            <div className="relative flex-1 sm:flex-initial">
               <button
                 onClick={() => setShowModelSelector(!showModelSelector)}
-                className="flex items-center gap-2 border border-primary/30 bg-primary/5 px-3 py-1.5 hover:bg-primary/10 transition-all uppercase tracking-wider text-[10px]"
+                className="flex items-center gap-1.5 sm:gap-2 border border-primary/30 bg-primary/5 px-2 sm:px-3 py-1.5 hover:bg-primary/10 transition-all uppercase tracking-wider text-[9px] sm:text-[10px] w-full sm:w-auto justify-center"
               >
-                <Settings className="h-3 w-3" />
-                <span className="text-primary">
+                <Settings className="h-3 w-3 shrink-0" />
+                <span className="text-primary truncate">
                   {AVAILABLE_MODELS.find((m) => m.id === selectedModel)?.name ||
                     "Model"}
                 </span>
@@ -193,7 +193,7 @@ export function ChatInterface() {
               )}
             </div>
 
-            <span className="flex items-center gap-1">
+            <span className="hidden sm:flex items-center gap-1">
               <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>{" "}
               SYSTEM ONLINE
             </span>

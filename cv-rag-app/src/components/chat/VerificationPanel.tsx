@@ -161,7 +161,8 @@ export function VerificationPanel({ sources }: VerificationPanelProps) {
               {isVerifying ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Verifying...
+                  <span className="hidden sm:inline">Verifying...</span>
+                  <span className="sm:hidden">Verifying...</span>
                 </>
               ) : verificationResults.length > 0 ? (
                 <>
@@ -171,14 +172,20 @@ export function VerificationPanel({ sources }: VerificationPanelProps) {
               ) : (
                 <>
                   <Shield className="h-4 w-4" />
-                  Run Cryptographic Verification
+                  <span className="hidden sm:inline">
+                    Run Cryptographic Verification
+                  </span>
+                  <span className="sm:hidden">Verify Sources</span>
                 </>
               )}
             </Button>
 
             <p className="text-center text-xs text-muted-foreground">
-              Verification checks: SHA-256 hash → Merkle proof → Blockchain
-              anchor
+              <span className="hidden sm:inline">
+                Verification checks: SHA-256 hash → Merkle proof → Blockchain
+                anchor
+              </span>
+              <span className="sm:hidden">SHA-256 → Merkle → Blockchain</span>
             </p>
           </CardContent>
         </CollapsibleContent>
