@@ -13,6 +13,7 @@ import {
   stepCountIs,
 } from "ai";
 import { google } from "@ai-sdk/google";
+import { groq } from "@ai-sdk/groq";
 import { z } from "zod";
 import { generateEmbedding } from "@/lib/rag/embeddings";
 import {
@@ -23,18 +24,25 @@ import {
 // System prompt - instructs LLM to use tools when needed
 const SYSTEM_PROMPT = `You are a helpful assistant for Indonesian government budget transparency (APBN/APBD).
 
-When users ask questions about budget data, spending, allocations, or fiscal information, use the searchBudgetDocuments tool to find relevant information from the official database.
+When users ask questions about budget data, use the searchBudgetDocuments tool to find relevant information.
 
-For general greetings, clarifications, or non-budget questions, respond directly without searching.
+For general greetings or non-budget questions, respond directly without searching.
 
-Rules when answering budget questions:
-- Be concise and factual
-- Cite sources when referencing information
-- Use Indonesian Rupiah (IDR) for currency
-- Format large numbers with thousand separators (e.g., 1,500,000,000,000)
-- If sources conflict, mention both perspectives
-- Never make up budget figures
-- If the search returns no results, say you couldn't find the information`;
+IMPORTANT: Call the search tool ONLY ONCE per question. After receiving results, immediately provide your answer.
+
+Answer format rules:
+- Give SHORT, DIRECT answers
+- Report EXACT values from documents with their original units
+- Example: "Anggaran Kemendikbud: 93.600.821.056 Ribu Rupiah"
+- NEVER add conversions like "≈ triliun" or "≈ miliar" 
+- NEVER use tables unless asked
+- Cite the source document name
+- If no results found, say so`;
+
+// Compact system prompt for models with low token limits (Groq free tier)
+const COMPACT_SYSTEM_PROMPT = `You assist with Indonesian budget (APBN/APBD) queries. 
+IMPORTANT: Call searchBudgetDocuments ONLY ONCE, then answer immediately with the results. 
+Be concise, cite sources, preserve original values and units.`;
 
 // Allowed models for validation
 const ALLOWED_MODELS = [
@@ -43,15 +51,68 @@ const ALLOWED_MODELS = [
   "gemini-2.0-flash",
   "gemini-1.5-flash",
   "gemini-1.5-pro",
+  // Groq models via OpenAI-compatible API
+  "openai/gpt-oss-20b",
+  "openai/gpt-oss-120b",
 ] as const;
+
+/**
+ * Check if model is a low-token-limit model (Groq free tier = 8K TPM)
+ */
+function isLowTokenModel(modelId: string): boolean {
+  return modelId.startsWith("openai/");
+}
+
+/**
+ * Get model-specific limits
+ */
+function getModelLimits(modelId: string) {
+  if (isLowTokenModel(modelId)) {
+    return {
+      maxTopK: 10, // Fewer chunks to reduce tokens
+      maxContextChars: 1500, // Truncate context
+      maxOutputTokens: 500,
+      maxMessages: 4, // Keep only 2 exchanges
+    };
+  }
+  return {
+    maxTopK: 10,
+    maxContextChars: 10000,
+    maxOutputTokens: 1000,
+    maxMessages: 10, // Keep 5 exchanges
+  };
+}
+
+/**
+ * Truncate text to max characters
+ */
+function truncateText(text: string, maxChars: number): string {
+  if (text.length <= maxChars) return text;
+  return text.slice(0, maxChars) + "... [truncated]";
+}
+
+/**
+ * Get the appropriate model instance based on model ID
+ */
+function getModelInstance(modelId: string) {
+  if (modelId.startsWith("openai/")) {
+    // Groq models use OpenAI-compatible format
+    return groq(modelId);
+  }
+  // Default to Google Gemini
+  return google(modelId);
+}
 
 /**
  * Trim conversation history to reduce token usage
  * Keeps only recent messages and strips heavy tool results
  */
-function trimConversationHistory(messages: UIMessage[]): UIMessage[] {
-  // Keep only last 10 messages (5 exchanges)
-  const recentMessages = messages.slice(-10);
+function trimConversationHistory(
+  messages: UIMessage[],
+  maxMessages: number = 10
+): UIMessage[] {
+  // Keep only recent messages based on model limits
+  const recentMessages = messages.slice(-maxMessages);
 
   // Strip heavy data from tool results to save tokens
   return recentMessages.map((msg) => {
@@ -102,8 +163,17 @@ export async function POST(req: Request) {
         ? model
         : "gemini-2.0-flash";
 
+    // Get model-specific limits first (needed for trimming)
+    const limits = getModelLimits(selectedModel);
+    const systemPrompt = isLowTokenModel(selectedModel)
+      ? COMPACT_SYSTEM_PROMPT
+      : SYSTEM_PROMPT;
+
     // Trim conversation history to reduce token usage
-    const trimmedMessages = trimConversationHistory(messages);
+    const trimmedMessages = trimConversationHistory(
+      messages,
+      limits.maxMessages
+    );
 
     console.log(
       `📊 Token optimization: ${messages.length} messages → ${trimmedMessages.length} messages`
@@ -112,12 +182,17 @@ export async function POST(req: Request) {
     // Convert UI messages to model messages
     const modelMessages = await convertToModelMessages(trimmedMessages);
 
+    console.log(
+      `🔧 Model limits: topK=${limits.maxTopK}, context=${limits.maxContextChars}chars, output=${limits.maxOutputTokens}tokens`
+    );
+
     // Generate streaming response with RAG tool
     const result = streamText({
-      model: google(selectedModel),
-      system: SYSTEM_PROMPT,
+      model: getModelInstance(selectedModel),
+      system: systemPrompt,
       messages: modelMessages,
-      // Allow multi-step so LLM can use tool results
+      // stopWhen: stepCountIs(2) allows 2 steps max:
+      // Step 1: tool call + result, Step 2: generate text response
       stopWhen: stepCountIs(5),
       tools: {
         searchBudgetDocuments: tool({
@@ -143,7 +218,8 @@ export async function POST(req: Request) {
             query: string;
             topK?: number;
           }) => {
-            const k = topK ?? 10; // Balance between quality and token usage
+            // Use model-specific limits for topK
+            const k = Math.min(topK ?? limits.maxTopK, limits.maxTopK);
             try {
               // Generate embedding for the query
               const queryEmbedding = await generateEmbedding(query);
@@ -153,7 +229,7 @@ export async function POST(req: Request) {
               const chunks = await retrieveRelevantChunks(
                 queryEmbedding,
                 k,
-                0.3
+                0.25
               );
 
               if (chunks.length === 0) {
@@ -165,9 +241,13 @@ export async function POST(req: Request) {
               }
 
               // Return sources with verification data
+              // Truncate context for low-token models
+              const rawContext = buildContextFromChunks(chunks);
+              const context = truncateText(rawContext, limits.maxContextChars);
+
               return {
                 found: true,
-                context: buildContextFromChunks(chunks),
+                context,
                 sources: chunks.map((c) => ({
                   chunkId: c.chunkId,
                   content: c.content, // Full content required for hash verification
@@ -197,7 +277,7 @@ export async function POST(req: Request) {
         }),
       },
       temperature: 0.3,
-      maxOutputTokens: 1000,
+      maxOutputTokens: limits.maxOutputTokens,
     });
 
     // Return streaming response

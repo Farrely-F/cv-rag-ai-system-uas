@@ -17,19 +17,45 @@ const AVAILABLE_MODELS = [
     id: "gemini-3-flash-preview",
     name: "Gemini 3 Flash (Exp)",
     speed: "⚡ Fast",
+    provider: "google",
   },
   {
     id: "gemini-2.0-flash",
     name: "Gemini 2.0 Flash",
     speed: "⚡ Fast",
+    provider: "google",
   },
   {
     id: "gemini-2.5-flash",
     name: "Gemini 2.5 Flash",
     speed: "⚡ Fast",
+    provider: "google",
   },
-  { id: "gemini-1.5-flash", name: "Gemini 1.5 Flash", speed: "⚡ Fast" },
-  { id: "gemini-1.5-pro", name: "Gemini 1.5 Pro", speed: "🧠 Most Capable" },
+  {
+    id: "gemini-1.5-flash",
+    name: "Gemini 1.5 Flash",
+    speed: "⚡ Fast",
+    provider: "google",
+  },
+  {
+    id: "gemini-1.5-pro",
+    name: "Gemini 1.5 Pro",
+    speed: "🧠 Most Capable",
+    provider: "google",
+  },
+  // Groq models via OpenAI-compatible API
+  {
+    id: "openai/gpt-oss-20b",
+    name: "GPT OSS 20B",
+    speed: "⚡ Fast",
+    provider: "groq",
+  },
+  {
+    id: "openai/gpt-oss-120b",
+    name: "GPT OSS 120B",
+    speed: "🧠 Most Capable",
+    provider: "groq",
+  },
 ] as const;
 
 // Types for tool results

@@ -5,7 +5,7 @@
 
 import { db } from "@/lib/db/client";
 import { documentChunks, documents } from "@/lib/db/schema";
-import { sql, eq } from "drizzle-orm";
+import { sql, eq, cosineDistance, gt, desc } from "drizzle-orm";
 
 export interface RetrievedChunk {
   chunkId: string;
@@ -28,9 +28,14 @@ export interface RetrievedChunk {
 export async function retrieveRelevantChunks(
   queryEmbedding: number[],
   topK: number = 10,
-  similarityThreshold: number = 0.2
+  similarityThreshold: number = 0.3
 ): Promise<RetrievedChunk[]> {
   const embeddingString = `[${queryEmbedding.join(",")}]`;
+
+  const similarity = sql<number>`1 - (${cosineDistance(
+    documentChunks.embedding,
+    embeddingString
+  )})`;
 
   const results = await db
     .select({
@@ -38,7 +43,7 @@ export async function retrieveRelevantChunks(
       content: documentChunks.content,
       chunkHash: documentChunks.sha256Hash,
       merkleProof: documentChunks.merkleProof,
-      similarity: sql<number>`1 - (${documentChunks.embedding} <=> ${embeddingString}::vector)`,
+      similarity,
       documentId: documentChunks.documentId,
       fileName: documents.fileName,
       fiscalYear: documents.fiscalYear,
@@ -47,11 +52,9 @@ export async function retrieveRelevantChunks(
       blockchainTxId: documents.blockchainTxId,
     })
     .from(documentChunks)
+    .where(gt(similarity, similarityThreshold))
+    .orderBy((t) => desc(t.similarity))
     .innerJoin(documents, eq(documentChunks.documentId, documents.id))
-    .where(
-      sql`1 - (${documentChunks.embedding} <=> ${embeddingString}::vector) > ${similarityThreshold}`
-    )
-    .orderBy(sql`${documentChunks.embedding} <=> ${embeddingString}::vector`)
     .limit(topK);
 
   return results.map((r) => ({
