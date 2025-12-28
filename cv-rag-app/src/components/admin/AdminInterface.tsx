@@ -47,6 +47,7 @@ import {
   useInvalidateDocuments,
   type Document,
 } from "@/hooks/use-documents";
+import { useDbStats } from "@/hooks/use-db-stats";
 
 interface ProgressEvent {
   step: string;
@@ -104,7 +105,10 @@ export function AdminInterface() {
   const deleteDocumentMutation = useDeleteDocument();
   const invalidateDocuments = useInvalidateDocuments();
 
-  const MAX_DOCS = documents.length === 1;
+  // Database stats (React Query)
+  const { data: dbStats } = useDbStats();
+
+  // const MAX_DOCS = documents.length === 1;
 
   // Tampering state
   const [tamperModalOpen, setTamperModalOpen] = useState(false);
@@ -277,52 +281,60 @@ export function AdminInterface() {
         </div>
 
         {/* Dashboard Stats (Pseudo) */}
-        {!MAX_DOCS && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="border border-primary/20 bg-primary/5 p-4 relative overflow-hidden group">
-              <div className="absolute top-0 right-0 p-2 opacity-20">
-                <Database className="w-12 h-12" />
-              </div>
-              <div className="text-xs text-muted-foreground uppercase">
-                Database Status
-              </div>
-              <div className="text-2xl font-bold text-foreground mt-1">
-                Active
-              </div>
-              <div className="w-full bg-border h-1 mt-3">
-                <div className="bg-green-500 h-full w-[98%]"></div>
-              </div>
+        {/* {!MAX_DOCS && ( */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="border border-primary/20 bg-primary/5 p-4 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-2 opacity-20">
+              <Database className="w-12 h-12" />
             </div>
-            <div className="border border-primary/20 bg-primary/5 p-4 relative overflow-hidden group">
-              <div className="absolute top-0 right-0 p-2 opacity-20">
-                <Shield className="w-12 h-12" />
-              </div>
-              <div className="text-xs text-muted-foreground uppercase">
-                Blockchain Anchor
-              </div>
-              <div className="text-2xl font-bold text-foreground mt-1">
-                Sepolia
-              </div>
-              <div className="w-full bg-border h-1 mt-3">
-                <div className="bg-primary h-full w-full animate-pulse"></div>
-              </div>
+            <div className="text-xs text-muted-foreground uppercase">
+              Database Status
             </div>
-            <div className="border border-primary/20 bg-primary/5 p-4 relative overflow-hidden group">
-              <div className="absolute top-0 right-0 p-2 opacity-20">
-                <HardDrive className="w-12 h-12" />
-              </div>
-              <div className="text-xs text-muted-foreground uppercase">
-                Storage Space
-              </div>
-              <div className="text-2xl font-bold text-foreground mt-1">
-                84% Free
-              </div>
-              <div className="w-full bg-border h-1 mt-3">
-                <div className="bg-primary h-full w-[16%]"></div>
-              </div>
+            <div className="text-2xl font-bold text-foreground mt-1">
+              Active
+            </div>
+            <div className="w-full bg-border h-1 mt-3">
+              <div className="bg-green-500 h-full w-[98%]"></div>
             </div>
           </div>
-        )}
+          <div className="border border-primary/20 bg-primary/5 p-4 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-2 opacity-20">
+              <Shield className="w-12 h-12" />
+            </div>
+            <div className="text-xs text-muted-foreground uppercase">
+              Blockchain Anchor
+            </div>
+            <div className="text-2xl font-bold text-foreground mt-1">
+              Base Sepolia
+            </div>
+            <div className="w-full bg-border h-1 mt-3">
+              <div className="bg-primary h-full w-full animate-pulse"></div>
+            </div>
+          </div>
+          <div className="border border-primary/20 bg-primary/5 p-4 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-2 opacity-20">
+              <HardDrive className="w-12 h-12" />
+            </div>
+            <div className="text-xs text-muted-foreground uppercase">
+              Database Size
+            </div>
+            <div className="text-2xl font-bold text-foreground mt-1">
+              {dbStats ? dbStats.sizeHuman : "Loading..."}
+            </div>
+            <div className="w-full bg-border h-1 mt-3">
+              <div
+                className="bg-primary h-full transition-all duration-300"
+                style={{ width: `${dbStats?.usedPercentage || 0}%` }}
+              ></div>
+            </div>
+            {dbStats && (
+              <div className="text-[10px] text-muted-foreground mt-1">
+                {dbStats.usedPercentage}% of {dbStats.maxSizeHuman}
+              </div>
+            )}
+          </div>
+        </div>
+        {/* )} */}
 
         {/* Document List */}
         <Card className="border-border bg-card/40 backdrop-blur-sm">
@@ -467,317 +479,331 @@ export function AdminInterface() {
         </Card>
 
         {/* Upload Form */}
-        {!MAX_DOCS && (
-          <Card className="border-border bg-card/40 backdrop-blur-sm relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-4 opacity-5">
-              <Upload className="w-32 h-32" />
-            </div>
-            <CardHeader className="border-b border-primary/10">
-              <CardTitle className="uppercase tracking-wider text-sm flex items-center gap-2 not-italic">
-                <Upload className="h-4 w-4" /> Ingest New Document
-              </CardTitle>
-              <CardDescription className="text-xs font-mono opacity-70">
-                Secure pipeline: PDF → Vector Chunks → Merkle Hashing →
-                Blockchain Anchor
-              </CardDescription>
-            </CardHeader>
-            <CardContent id="upload-form" className="pt-6 relative z-10">
-              <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Version indicator for update */}
-                {parentDocumentId && (
-                  <Alert className="bg-info/10 border-info/30 text-info">
-                    <RefreshCw className="h-4 w-4" />
-                    <AlertTitle>UPDATING DOCUMENT VERSION</AlertTitle>
-                    <AlertDescription className="text-xs">
-                      Audit trail will be preserved.
+        {/* {!MAX_DOCS && ( */}
+        <Card className="border-border bg-card/40 backdrop-blur-sm relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-4 opacity-5">
+            <Upload className="w-32 h-32" />
+          </div>
+          <CardHeader className="border-b border-primary/10">
+            <CardTitle className="uppercase tracking-wider text-sm flex items-center gap-2 not-italic">
+              <Upload className="h-4 w-4" /> Ingest New Document
+            </CardTitle>
+            <CardDescription className="text-xs font-mono opacity-70">
+              Secure pipeline: PDF → Vector Chunks → Merkle Hashing → Blockchain
+              Anchor
+            </CardDescription>
+          </CardHeader>
+          <CardContent id="upload-form" className="pt-6 relative z-10">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Version indicator for update */}
+              {parentDocumentId && (
+                <Alert className="bg-info/10 border-info/30 text-info">
+                  <RefreshCw className="h-4 w-4" />
+                  <AlertTitle>UPDATING DOCUMENT VERSION</AlertTitle>
+                  <AlertDescription className="text-xs">
+                    Audit trail will be preserved.
+                    <Button
+                      variant="link"
+                      className="h-auto p-0 ml-2 text-info underline"
+                      onClick={() => setParentDocumentId(null)}
+                    >
+                      CANCEL UPDATE
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              )}
+              {/* File Upload */}
+              <div className="space-y-2">
+                <Label
+                  htmlFor="file"
+                  className="text-xs uppercase tracking-wider text-muted-foreground"
+                >
+                  Source File (PDF)
+                </Label>
+                <div className="border border-dashed border-primary/30 bg-primary/5 p-6 text-center hover:bg-primary/10 transition-colors cursor-pointer relative">
+                  <input
+                    id="file"
+                    type="file"
+                    accept=".pdf"
+                    onChange={handleFileChange}
+                    disabled={isUploading}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                  {file ? (
+                    <div className="flex flex-col items-center relative">
                       <Button
-                        variant="link"
-                        className="h-auto p-0 ml-2 text-info underline"
-                        onClick={() => setParentDocumentId(null)}
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setFile(null);
+                          setResult(null);
+                          setCurrentProgress(null);
+                          setCompletedSteps([]);
+                          // Reset the file input
+                          const fileInput = document.getElementById(
+                            "file"
+                          ) as HTMLInputElement;
+                          if (fileInput) fileInput.value = "";
+                        }}
+                        disabled={isUploading}
+                        className="group absolute -top-2 -right-2 h-8 w-8 aspect-square p-0 rounded-full hover:bg-destructive/20"
+                        title="Remove file"
                       >
-                        CANCEL UPDATE
+                        <XCircle className="h-4 w-4 group-hover:text-destructive/50 text-destructive" />
                       </Button>
-                    </AlertDescription>
-                  </Alert>
-                )}
-                {/* File Upload */}
+                      <FileText className="h-8 w-8 text-primary mb-2" />
+                      <span className="font-bold text-primary">
+                        {file.name}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {(file.size / 1024 / 1024).toFixed(2)} MB
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center text-muted-foreground">
+                      <Upload className="h-8 w-8 mb-2 opacity-50" />
+                      <span className="text-sm">
+                        DRAG FILE HERE OR CLICK TO BROWSE
+                      </span>
+                      <span className="text-[10px] opacity-70 mt-1">
+                        PDF Format Only. Max 10MB.
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid gap-6 sm:grid-cols-3">
+                {/* Document Type */}
                 <div className="space-y-2">
                   <Label
-                    htmlFor="file"
+                    htmlFor="documentType"
                     className="text-xs uppercase tracking-wider text-muted-foreground"
                   >
-                    Source File (PDF)
-                  </Label>
-                  <div className="border border-dashed border-primary/30 bg-primary/5 p-6 text-center hover:bg-primary/10 transition-colors cursor-pointer relative">
-                    <input
-                      id="file"
-                      type="file"
-                      accept=".pdf"
-                      onChange={handleFileChange}
-                      disabled={isUploading}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    />
-                    {file ? (
-                      <div className="flex flex-col items-center">
-                        <FileText className="h-8 w-8 text-primary mb-2" />
-                        <span className="font-bold text-primary">
-                          {file.name}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {(file.size / 1024 / 1024).toFixed(2)} MB
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center text-muted-foreground">
-                        <Upload className="h-8 w-8 mb-2 opacity-50" />
-                        <span className="text-sm">
-                          DRAG FILE HERE OR CLICK TO BROWSE
-                        </span>
-                        <span className="text-[10px] opacity-70 mt-1">
-                          PDF Format Only. Max 10MB.
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="grid gap-6 sm:grid-cols-3">
-                  {/* Document Type */}
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="documentType"
-                      className="text-xs uppercase tracking-wider text-muted-foreground"
-                    >
-                      Document Type
-                    </Label>
-                    <Select
-                      value={documentType}
-                      onValueChange={(value) => value && setDocumentType(value)}
-                      disabled={isUploading}
-                    >
-                      <SelectTrigger
-                        id="documentType"
-                        className="bg-background/50 border-input"
-                      >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="APBN">
-                          APBN (State Budget)
-                        </SelectItem>
-                        <SelectItem value="APBD">
-                          APBD (Regional Budget)
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Fiscal Year */}
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="fiscalYear"
-                      className="text-xs uppercase tracking-wider text-muted-foreground"
-                    >
-                      Fiscal Year
-                    </Label>
-                    <Select
-                      value={fiscalYear}
-                      onValueChange={(value) => value && setFiscalYear(value)}
-                      disabled={isUploading}
-                    >
-                      <SelectTrigger
-                        id="fiscalYear"
-                        className="bg-background/50 border-input"
-                      >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {years.map((year) => (
-                          <SelectItem key={year} value={year.toString()}>
-                            {year}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Source */}
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="source"
-                      className="text-xs uppercase tracking-wider text-muted-foreground"
-                    >
-                      Source Organization
-                    </Label>
-                    <Input
-                      id="source"
-                      value={source}
-                      onChange={(e) => setSource(e.target.value)}
-                      placeholder="e.g., MINISTRY OF FINANCE"
-                      disabled={isUploading}
-                      className="bg-background/50 border-input"
-                    />
-                  </div>
-                </div>
-
-                {/* Chunking Strategy */}
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="chunkingStrategy"
-                    className="text-xs uppercase tracking-wider text-muted-foreground"
-                  >
-                    Vector Data Strategy
+                    Document Type
                   </Label>
                   <Select
-                    value={chunkingStrategy}
-                    onValueChange={(value) =>
-                      value && setChunkingStrategy(value)
-                    }
+                    value={documentType}
+                    onValueChange={(value) => value && setDocumentType(value)}
                     disabled={isUploading}
                   >
                     <SelectTrigger
-                      id="chunkingStrategy"
+                      id="documentType"
                       className="bg-background/50 border-input"
                     >
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="semantic">
-                        Semantic Analysis (Recommended)
-                      </SelectItem>
-                      <SelectItem value="fixed">
-                        Fixed Length Character
-                      </SelectItem>
-                      <SelectItem value="sentence">
-                        Sentence Grouping
-                      </SelectItem>
-                      <SelectItem value="paragraph">
-                        Paragraph Separation
-                      </SelectItem>
-                      <SelectItem value="page">Page-Level Splitting</SelectItem>
-                      <SelectItem value="agentic">
-                        Agentic LLM Segmentation
+                      <SelectItem value="APBN">APBN (State Budget)</SelectItem>
+                      <SelectItem value="APBD">
+                        APBD (Regional Budget)
                       </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                {/* High Quality Toggle */}
-                <div className="flex items-center space-x-3 rounded-none border border-primary/20 bg-primary/5 p-4">
-                  <input
-                    type="checkbox"
-                    id="highQuality"
-                    checked={highQuality}
-                    onChange={(e) => setHighQuality(e.target.checked)}
-                    disabled={isUploading}
-                    className="h-4 w-4 rounded-none border-primary bg-transparent text-primary focus:ring-primary focus:ring-offset-0"
-                  />
-                  <div className="grid gap-1.5 leading-none">
-                    <label
-                      htmlFor="highQuality"
-                      className="text-sm font-bold leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-primary uppercase"
-                    >
-                      High-Fidelity Extraction (Gemini 2.0)
-                    </label>
-                    <p className="text-xs text-muted-foreground">
-                      Enable advanced layout analysis for complex tables and
-                      grids. Adds ~30s processing time.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Progress Steps */}
-                {isUploading && currentProgress && (
-                  <div className="space-y-4 rounded-none border border-primary/30 bg-black/20 p-4 font-mono text-xs">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-bold uppercase text-primary animate-pulse">
-                          &gt; {currentProgress.message}
-                        </p>
-                        {currentProgress.detail && (
-                          <p className="text-[10px] text-muted-foreground mt-1">
-                            {currentProgress.detail}
-                          </p>
-                        )}
-                      </div>
-                      <span className="text-lg font-bold text-primary">
-                        {currentProgress.progress}%
-                      </span>
-                    </div>
-                    <Progress
-                      value={currentProgress.progress}
-                      className="h-1 rounded-none bg-primary/20"
-                    />
-
-                    {/* Step indicators */}
-                    <div className="grid grid-cols-4 gap-2 sm:grid-cols-8 mt-4">
-                      {STEPS.slice(0, -1).map((step) => {
-                        const isCompleted = completedSteps.includes(step.id);
-                        const isCurrent = currentProgress.step === step.id;
-                        return (
-                          <div
-                            key={step.id}
-                            className={`flex flex-col items-center gap-1 rounded-none p-2 border text-[10px] uppercase text-center transition-all ${
-                              isCompleted
-                                ? "bg-green-500/10 text-green-500 border-green-500/30"
-                                : isCurrent
-                                ? "bg-primary/20 text-primary border-primary animate-pulse"
-                                : "bg-muted/10 text-muted-foreground border-transparent opacity-50"
-                            }`}
-                          >
-                            {isCompleted ? (
-                              <CheckCircle2 className="h-3 w-3" />
-                            ) : isCurrent ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : (
-                              <div className="h-3 w-3 rounded-full border border-muted-foreground" />
-                            )}
-                            <span className="hidden sm:inline">
-                              {step.label}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* Action Buttons */}
-                <div className="flex gap-4 pt-4">
-                  <Button
-                    type="submit"
-                    disabled={!file || isUploading}
-                    className="flex-1 rounded-none bg-primary text-primary-foreground hover:bg-prundimary/90 uppercase tracking-widest font-bold h-12 text-sm"
+                {/* Fiscal Year */}
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="fiscalYear"
+                    className="text-xs uppercase tracking-wider text-muted-foreground"
                   >
-                    {isUploading ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        EXECUTING PIPELINE...
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="h-4 w-4 mr-2" />
-                        INITIATE UPLOAD
-                      </>
-                    )}
-                  </Button>
-
-                  {isUploading && (
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      onClick={handleAbort}
-                      className="rounded-none uppercase tracking-wider"
+                    Fiscal Year
+                  </Label>
+                  <Select
+                    value={fiscalYear}
+                    onValueChange={(value) => value && setFiscalYear(value)}
+                    disabled={isUploading}
+                  >
+                    <SelectTrigger
+                      id="fiscalYear"
+                      className="bg-background/50 border-input"
                     >
-                      <XCircle className="h-4 w-4 mr-2" />
-                      ABORT
-                    </Button>
-                  )}
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {years.map((year) => (
+                        <SelectItem key={year} value={year.toString()}>
+                          {year}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              </form>
-            </CardContent>
-          </Card>
-        )}
+
+                {/* Source */}
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="source"
+                    className="text-xs uppercase tracking-wider text-muted-foreground"
+                  >
+                    Source Organization
+                  </Label>
+                  <Input
+                    id="source"
+                    value={source}
+                    onChange={(e) => setSource(e.target.value)}
+                    placeholder="e.g., MINISTRY OF FINANCE"
+                    disabled={isUploading}
+                    className="bg-background/50 border-input"
+                  />
+                </div>
+              </div>
+
+              {/* Chunking Strategy */}
+              <div className="space-y-2">
+                <Label
+                  htmlFor="chunkingStrategy"
+                  className="text-xs uppercase tracking-wider text-muted-foreground"
+                >
+                  Chunking Strategy
+                </Label>
+                <Select
+                  value={chunkingStrategy}
+                  onValueChange={(value) => value && setChunkingStrategy(value)}
+                  disabled={isUploading}
+                >
+                  <SelectTrigger
+                    id="chunkingStrategy"
+                    className="bg-background/50 border-input"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="semantic">
+                      Semantic Analysis (Recommended)
+                    </SelectItem>
+                    <SelectItem value="fixed">
+                      Fixed Length Character
+                    </SelectItem>
+                    <SelectItem value="sentence">Sentence Grouping</SelectItem>
+                    <SelectItem value="paragraph">
+                      Paragraph Separation
+                    </SelectItem>
+                    <SelectItem value="page">Page-Level Splitting</SelectItem>
+                    <SelectItem value="agentic">
+                      Agentic LLM Segmentation
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* High Quality Toggle */}
+              <div className="flex items-center space-x-3 rounded-none border border-primary/20 bg-primary/5 p-4">
+                <input
+                  type="checkbox"
+                  id="highQuality"
+                  checked={highQuality}
+                  onChange={(e) => setHighQuality(e.target.checked)}
+                  disabled={isUploading}
+                  className="h-4 w-4 rounded-none border-primary bg-transparent text-primary focus:ring-primary focus:ring-offset-0"
+                />
+                <div className="grid gap-1.5 leading-none">
+                  <label
+                    htmlFor="highQuality"
+                    className="text-sm font-bold leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-primary uppercase"
+                  >
+                    High-Fidelity Extraction (Gemini 2.0)
+                  </label>
+                  <p className="text-xs text-muted-foreground">
+                    Enable advanced layout analysis for complex tables and
+                    grids. Adds ~30s processing time.
+                  </p>
+                </div>
+              </div>
+
+              {/* Progress Steps */}
+              {isUploading && currentProgress && (
+                <div className="space-y-4 rounded-none border border-primary/30 bg-black/20 p-4 font-mono text-xs">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-bold uppercase text-primary animate-pulse">
+                        &gt; {currentProgress.message}
+                      </p>
+                      {currentProgress.detail && (
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          {currentProgress.detail}
+                        </p>
+                      )}
+                    </div>
+                    <span className="text-lg font-bold text-primary">
+                      {currentProgress.progress}%
+                    </span>
+                  </div>
+                  <Progress
+                    value={currentProgress.progress}
+                    className="h-1 rounded-none bg-primary/20"
+                  />
+
+                  {/* Step indicators */}
+                  <div className="grid grid-cols-4 gap-2 sm:grid-cols-8 mt-4">
+                    {STEPS.slice(0, -1).map((step) => {
+                      const isCompleted = completedSteps.includes(step.id);
+                      const isCurrent = currentProgress.step === step.id;
+                      return (
+                        <div
+                          key={step.id}
+                          className={`flex flex-col items-center gap-1 rounded-none p-2 border text-[10px] uppercase text-center transition-all ${
+                            isCompleted
+                              ? "bg-green-500/10 text-green-500 border-green-500/30"
+                              : isCurrent
+                              ? "bg-primary/20 text-primary border-primary animate-pulse"
+                              : "bg-muted/10 text-muted-foreground border-transparent opacity-50"
+                          }`}
+                        >
+                          {isCompleted ? (
+                            <CheckCircle2 className="h-3 w-3" />
+                          ) : isCurrent ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <div className="h-3 w-3 rounded-full border border-muted-foreground" />
+                          )}
+                          <span className="hidden sm:inline">{step.label}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex gap-4 pt-4">
+                <Button
+                  type="submit"
+                  disabled={!file || isUploading}
+                  className="flex-1 rounded-none bg-primary text-primary-foreground hover:bg-prundimary/90 uppercase tracking-widest font-bold h-12 text-sm"
+                >
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      EXECUTING PIPELINE...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4 mr-2" />
+                      INITIATE UPLOAD
+                    </>
+                  )}
+                </Button>
+
+                {isUploading && (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={handleAbort}
+                    className="rounded-none uppercase tracking-wider"
+                  >
+                    <XCircle className="h-4 w-4 mr-2" />
+                    ABORT
+                  </Button>
+                )}
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+        {/* )} */}
 
         {/* Result */}
         {result && (
